@@ -1,7 +1,15 @@
-import { User } from '../models/User.js';
-import { db, ROOMS_COLLECTION, TRANSACTIONS_COLLECTION, NOTICES_COLLECTION } from '../utils/db.js';
+import { User, db, ROOMS_COLLECTION, TRANSACTIONS_COLLECTION, NOTICES_COLLECTION } from './models/index.js';
 
 async function handler(req, res) {
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -11,10 +19,10 @@ async function handler(req, res) {
     const superAdminEmail = 'gajula@gmail.com';
     const superAdmin = await User.findByEmail(superAdminEmail);
     if (!superAdmin) {
-      await User.create({ 
-        name: 'Super Admin', 
-        email: superAdminEmail, 
-        password: 'sahithi', 
+      await User.create({
+        name: 'Super Admin',
+        email: superAdminEmail,
+        password: 'sahithi',
         role: 'admin',
         phone: '+919876543210'
       });

@@ -1,5 +1,17 @@
-const admin = require('firebase-admin');
-const bcrypt = require('bcryptjs');
+import admin from 'firebase-admin';
+import bcrypt from 'bcryptjs';
+
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    }),
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+  });
+}
 
 const db = admin.firestore();
 
@@ -14,7 +26,7 @@ const NOTICES_COLLECTION = 'notices';
 const User = {
   async create(userData) {
     const { email, password, name, role, phone } = userData;
-    
+
     // Check if user exists
     const existingUser = await db.collection(USERS_COLLECTION).where('email', '==', email).get();
     if (!existingUser.empty) {
@@ -57,13 +69,13 @@ const User = {
   async findByIdWithRoom(id) {
     const doc = await db.collection(USERS_COLLECTION).doc(id).get();
     if (!doc.exists) return null;
-    
+
     const userData = doc.data();
     if (userData.room_id) {
       const roomDoc = await db.collection(ROOMS_COLLECTION).doc(userData.room_id).get();
       userData.room_id = roomDoc.exists ? { id: roomDoc.id, ...roomDoc.data() } : null;
     }
-    
+
     return { id: doc.id, ...userData };
   },
 
@@ -72,7 +84,6 @@ const User = {
   },
 
   async update(id, updateData) {
-    // Remove undefined fields to avoid Firestore errors
     const clean = Object.fromEntries(Object.entries(updateData).filter(([, v]) => v !== undefined));
     await db.collection(USERS_COLLECTION).doc(id).update(clean);
     return this.findById(id);
@@ -83,7 +94,7 @@ const User = {
 const Room = {
   async create(roomData) {
     const { room_number, wing, type, price, capacity, photo_url } = roomData;
-    
+
     const roomRef = await db.collection(ROOMS_COLLECTION).add({
       room_number,
       wing,
@@ -101,6 +112,13 @@ const Room = {
   async findAll() {
     const snapshot = await db.collection(ROOMS_COLLECTION).get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+
+  async findAvailable() {
+    const snapshot = await db.collection(ROOMS_COLLECTION).get();
+    const rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Return rooms where occupancy < capacity
+    return rooms.filter(room => (room.occupancy || 0) < (room.capacity || 1));
   },
 
   async findById(id) {
@@ -158,7 +176,7 @@ const Complaint = {
   async findAll() {
     const snapshot = await db.collection(COMPLAINTS_COLLECTION).orderBy('date', 'desc').get();
     const complaints = [];
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
       const user = await User.findById(data.user_id);
@@ -171,7 +189,7 @@ const Complaint = {
         assignedTo: assignedUser ? { id: assignedUser.id, name: assignedUser.name } : null
       });
     }
-    
+
     return complaints;
   },
 
@@ -185,7 +203,6 @@ const Complaint = {
     if (!userId) return [];
     const snapshot = await db.collection(COMPLAINTS_COLLECTION).where('user_id', '==', userId).get();
     const complaints = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Sort locally by date desc to avoid requiring composite indexes in Firestore
     complaints.sort((a, b) => {
       const da = a.date ? a.date.toDate ? a.date.toDate() : new Date(a.date) : 0;
       const dbt = b.date ? b.date.toDate ? b.date.toDate() : new Date(b.date) : 0;
@@ -196,33 +213,28 @@ const Complaint = {
 
   async update(id, updateData) {
     const clean = Object.fromEntries(Object.entries(updateData).filter(([, v]) => v !== undefined));
-    
-    // Auto-add resolvedAt timestamp when status changes to 'Resolved'
+
     if (clean.status === 'Resolved') {
       clean.resolvedAt = new Date();
     }
-    
+
     await db.collection(COMPLAINTS_COLLECTION).doc(id).update(clean);
     return this.findById(id);
   },
 
-  // Find active complaints (exclude those resolved > 24 hours ago)
   async findActive() {
     const snapshot = await db.collection(COMPLAINTS_COLLECTION).orderBy('date', 'desc').get();
     const complaints = [];
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      
-      // Skip complaints resolved more than 24 hours ago
+
       if (data.status === 'Resolved' && data.resolvedAt) {
         const resolvedAt = data.resolvedAt.toDate ? data.resolvedAt.toDate() : new Date(data.resolvedAt);
-        if (resolvedAt < twentyFourHoursAgo) {
-          continue;
-        }
+        if (resolvedAt < twentyFourHoursAgo) continue;
       }
-      
+
       const user = await User.findById(data.user_id);
       const assignedUser = data.assignedTo ? await User.findById(data.assignedTo) : null;
 
@@ -233,15 +245,14 @@ const Complaint = {
         assignedTo: assignedUser ? { id: assignedUser.id, name: assignedUser.name } : null
       });
     }
-    
+
     return complaints;
   },
 
-  // Find historical complaints (all complaints including old resolved ones)
   async findHistory() {
     const snapshot = await db.collection(COMPLAINTS_COLLECTION).orderBy('date', 'desc').get();
     const complaints = [];
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
       const user = await User.findById(data.user_id);
@@ -254,32 +265,27 @@ const Complaint = {
         assignedTo: assignedUser ? { id: assignedUser.id, name: assignedUser.name } : null
       });
     }
-    
+
     return complaints;
   },
 
-  // Find active complaints by user ID
   async findActiveByUserId(userId) {
     if (!userId) return [];
     const snapshot = await db.collection(COMPLAINTS_COLLECTION).where('user_id', '==', userId).get();
     const complaints = [];
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      
-      // Skip complaints resolved more than 24 hours ago
+
       if (data.status === 'Resolved' && data.resolvedAt) {
         const resolvedAt = data.resolvedAt.toDate ? data.resolvedAt.toDate() : new Date(data.resolvedAt);
-        if (resolvedAt < twentyFourHoursAgo) {
-          continue;
-        }
+        if (resolvedAt < twentyFourHoursAgo) continue;
       }
-      
+
       complaints.push({ id: doc.id, ...data });
     }
-    
-    // Sort locally by date desc
+
     complaints.sort((a, b) => {
       const da = a.date ? a.date.toDate ? a.date.toDate() : new Date(a.date) : 0;
       const dbt = b.date ? b.date.toDate ? b.date.toDate() : new Date(b.date) : 0;
@@ -288,13 +294,11 @@ const Complaint = {
     return complaints;
   },
 
-  // Find historical complaints by user ID
   async findHistoryByUserId(userId) {
     if (!userId) return [];
     const snapshot = await db.collection(COMPLAINTS_COLLECTION).where('user_id', '==', userId).get();
     const complaints = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    // Sort locally by date desc
+
     complaints.sort((a, b) => {
       const da = a.date ? a.date.toDate ? a.date.toDate() : new Date(a.date) : 0;
       const dbt = b.date ? b.date.toDate ? b.date.toDate() : new Date(b.date) : 0;
@@ -325,7 +329,7 @@ const Transaction = {
   async findAll() {
     const snapshot = await db.collection(TRANSACTIONS_COLLECTION).orderBy('date', 'desc').get();
     const transactions = [];
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
       const user = await User.findById(data.user_id);
@@ -338,7 +342,7 @@ const Transaction = {
         room_id: room ? { id: room.id, room_number: room.room_number } : null
       });
     }
-    
+
     return transactions;
   },
 
@@ -363,7 +367,6 @@ const Transaction = {
       });
     }
 
-    // Sort locally by date desc to avoid composite index requirements
     transactions.sort((a, b) => {
       const da = a.date ? a.date.toDate ? a.date.toDate() : new Date(a.date) : 0;
       const dbt = b.date ? b.date.toDate ? b.date.toDate() : new Date(b.date) : 0;
@@ -396,7 +399,7 @@ const Transaction = {
     if (!roomId) return [];
     const snapshot = await db.collection(TRANSACTIONS_COLLECTION).where('room_id', '==', roomId).get();
     const transactions = [];
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
       const user = await User.findById(data.user_id);
@@ -406,7 +409,7 @@ const Transaction = {
         user_id: user ? { id: user.id, name: user.name, email: user.email } : null
       });
     }
-    
+
     return transactions;
   }
 };
@@ -429,7 +432,7 @@ const Notice = {
   async findAll() {
     const snapshot = await db.collection(NOTICES_COLLECTION).orderBy('date', 'desc').get();
     const notices = [];
-    
+
     for (const doc of snapshot.docs) {
       const data = doc.data();
       const creator = data.createdBy ? await User.findById(data.createdBy) : null;
@@ -440,7 +443,7 @@ const Notice = {
         createdBy: creator ? { id: creator.id, name: creator.name } : null
       });
     }
-    
+
     return notices;
   },
 
@@ -451,7 +454,7 @@ const Notice = {
   }
 };
 
-module.exports = {
+export {
   User,
   Room,
   Complaint,
