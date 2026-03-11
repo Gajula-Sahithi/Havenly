@@ -3,90 +3,103 @@ const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
 
-// Initialize Firebase - production ready
-let db;
-try {
-  console.log('🔥 Initializing Firebase...');
-  
-  // For Vercel, use environment variables directly
-  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) {
-    
-    const serviceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL
-    };
+// Initialize Firebase
+admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+  }),
+  databaseURL: process.env.FIREBASE_DATABASE_URL
+});
 
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
-      });
-    }
-    
-    db = admin.firestore();
-    console.log('✅ Firebase initialized successfully');
-  } else {
-    throw new Error('Missing Firebase credentials');
-  }
-} catch (error) {
-  console.error('❌ Firebase initialization failed:', error.message);
-  
-  // Create mock database for demo
-  db = {
-    collection: () => ({
-      doc: () => ({
-        get: () => Promise.resolve({ exists: false, data: () => ({}) }),
-        set: () => Promise.resolve({ writeTime: new Date().toISOString() }),
-        update: () => Promise.resolve({ writeTime: new Date().toISOString() }),
-        delete: () => Promise.resolve()
-      }),
-      add: () => Promise.resolve({ id: 'demo-' + Date.now() }),
-      where: () => ({
-        get: () => Promise.resolve({ docs: [] })
-      }),
-      get: () => Promise.resolve({ docs: [] })
-    })
-  };
-  console.log('⚠️ Using demo database');
-}
-
-// Create Express app
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Serve static files from uploads folder (only for local dev)
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/uploads', express.static('uploads'));
-}
+const db = admin.firestore();
 
 // Import routes
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const studentRoutes = require('./routes/student');
+const aiRoutes = require('./routes/ai');
 
-// Use routes
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
+
+// Body parser error handler (catch invalid JSON payloads)
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    console.error('Invalid JSON payload:', err.message);
+    return res.status(400).json({ message: 'Invalid JSON payload' });
+  }
+  next(err);
+});
+
+// Firebase connection established
+console.log('Firebase Firestore connected');
+
+// Ensure demo accounts exist for easier testing
+try {
+  const { User } = require('./models');
+  (async () => {
+    try {
+      // Super Admin - only one account
+      const superAdminEmail = 'gajula@gmail.com';
+      const studentEmail = 'student-test@havenly.com';
+
+      const superAdmin = await User.findByEmail(superAdminEmail);
+      if (!superAdmin) {
+        await User.create({ 
+          name: 'Super Admin', 
+          email: superAdminEmail, 
+          password: 'sahithi', 
+          role: 'admin',
+          phone: '+919876543210'
+        });
+        console.log('Created super admin account:', superAdminEmail);
+      }
+
+      const student = await User.findByEmail(studentEmail);
+      if (!student) {
+        await User.create({ name: 'Student Demo', email: studentEmail, password: 'student123', role: 'student' });
+        console.log('Created demo student account:', studentEmail);
+      }
+    } catch (err) {
+      console.error('Demo account setup error:', err.message);
+    }
+  })();
+} catch (e) {
+  console.error('Unable to setup demo accounts:', e.message);
+}
+
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/ai', aiRoutes);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ message: 'DormFlow Backend is running' });
 });
 
-// Export for Vercel
-module.exports = app;
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Internal server error' });
+});
 
-// Start server for local development
-if (require.main === module) {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`DormFlow Backend running on http://localhost:${PORT}`);
-    console.log('Firebase Firestore connected');
-  });
-}
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`DormFlow Backend running on http://localhost:${PORT}`);
+});

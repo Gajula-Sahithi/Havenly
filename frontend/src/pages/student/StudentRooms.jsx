@@ -192,18 +192,11 @@ const StudentRooms = () => {
                     // Accept full URLs, relative server paths, and base64 data URIs
                     if (/^(https?:\/\/|data:image\/|\/)/.test(url)) return url;
                     
-                    // If it's a plain filename, construct proper URL
+                    // If it's a plain filename, try backend uploads but fallback to placeholder
                     if (/^[^/]+\.(jpg|jpeg|png|gif|webp)$/i.test(url)) {
-                      // In production, don't try to load local files
-                      if (import.meta.env.PROD) {
-                        console.log(`Production mode - using placeholder for room ${room.room_number}`);
-                        return PLACEHOLDER_SVG;
-                      }
-                      
-                      // Development: try localhost uploads
-                      const uploadsUrl = `http://localhost:5000/uploads/${url}`;
-                      console.log(`Trying uploads URL for room ${room.room_number}:`, uploadsUrl);
-                      return uploadsUrl;
+                      // For development, just use placeholder for local files
+                      console.log(`Local file detected for room ${room.room_number}, using placeholder`);
+                      return PLACEHOLDER_SVG;
                     }
                     
                     console.warn(`Invalid photo_url format for room ${room.room_number}:`, url);
@@ -213,7 +206,6 @@ const StudentRooms = () => {
                   className="w-full h-full object-cover"
                   onError={(e) => { 
                     console.error(`Failed to load image for room ${room.room_number}:`, e.currentTarget.src);
-                    // Fallback to placeholder
                     e.currentTarget.src = PLACEHOLDER_SVG;
                   }}
                   onLoad={(e) => { e.currentTarget.style.opacity = '1'; }}
