@@ -194,9 +194,14 @@ const StudentRooms = () => {
                     
                     // If it's a plain filename, construct proper URL
                     if (/^[^/]+\.(jpg|jpeg|png|gif|webp)$/i.test(url)) {
-                      // Use localhost:5000 for development, current origin for production
-                      const baseUrl = import.meta.env.DEV ? 'http://localhost:5000' : window.location.origin;
-                      const uploadsUrl = `${baseUrl}/uploads/${url}`;
+                      // In production, don't try to load local files
+                      if (import.meta.env.PROD) {
+                        console.log(`Production mode - using placeholder for room ${room.room_number}`);
+                        return PLACEHOLDER_SVG;
+                      }
+                      
+                      // Development: try localhost uploads
+                      const uploadsUrl = `http://localhost:5000/uploads/${url}`;
                       console.log(`Trying uploads URL for room ${room.room_number}:`, uploadsUrl);
                       return uploadsUrl;
                     }

@@ -29,8 +29,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files from uploads folder
-app.use('/uploads', express.static('uploads'));
+// Serve static files from uploads folder (only for local dev)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/uploads', express.static('uploads'));
+}
 
 // Import routes
 const authRoutes = require('./routes/auth');
