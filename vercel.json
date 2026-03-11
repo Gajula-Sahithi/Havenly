@@ -3,19 +3,14 @@
   "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "installCommand": "npm install",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/backend/server.js"
+      "source": "/api/(.*)",
+      "destination": "/backend/server.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/frontend/dist/$1"
+      "source": "/(.*)",
+      "destination": "/frontend/dist/$1"
     }
-  ],
-  "functions": {
-    "backend/server.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
