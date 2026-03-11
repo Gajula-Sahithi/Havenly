@@ -3,23 +3,57 @@ const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
 
-// Initialize Firebase
-const firebaseConfig = {
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n').replace(/"/g, ''),
-  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  databaseURL: process.env.FIREBASE_DATABASE_URL
-};
+// Initialize Firebase with better error handling
+let db;
+try {
+  // Check if required environment variables exist
+  if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_PRIVATE_KEY || !process.env.FIREBASE_CLIENT_EMAIL) {
+    throw new Error('Missing Firebase credentials');
+  }
 
-// Check if Firebase is already initialized
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(firebaseConfig),
+  // Parse the private key properly
+  let privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  // Handle different private key formats
+  if (privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    privateKey = privateKey.replace(/\\n/g, '\n').replace(/"/g, '');
+  }
+
+  const firebaseConfig = {
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    privateKey: privateKey,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     databaseURL: process.env.FIREBASE_DATABASE_URL
-  });
-}
+  };
 
-const db = admin.firestore();
+  // Initialize Firebase
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(firebaseConfig),
+      databaseURL: process.env.FIREBASE_DATABASE_URL
+    });
+  }
+  
+  db = admin.firestore();
+  console.log('Firebase initialized successfully');
+} catch (error) {
+  console.error('Firebase initialization error:', error.message);
+  // Create a mock database for development
+  db = {
+    collection: () => ({
+      doc: () => ({
+        get: () => Promise.resolve({ exists: false }),
+        set: () => Promise.resolve(),
+        update: () => Promise.resolve(),
+        delete: () => Promise.resolve()
+      }),
+      add: () => Promise.resolve({ id: 'mock-id' }),
+      where: () => ({
+        get: () => Promise.resolve({ docs: [] })
+      }),
+      get: () => Promise.resolve({ docs: [] })
+    })
+  };
+}
 
 // Create Express app
 const app = express();
