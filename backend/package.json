@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "build": "cd ../frontend && npm run build",
+    "build-and-start": "npm run build && npm start"
   },
   "keywords": [
     "hostel",

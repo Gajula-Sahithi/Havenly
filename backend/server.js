@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
+const path = require('path');
 
 // Initialize Firebase
 admin.initializeApp({
@@ -27,6 +28,25 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve static files from frontend build
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/student', studentRoutes);
+app.use('/api/ai', aiRoutes);
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ message: 'DormFlow Backend is running' });
+});
+
+// Frontend routing - serve React app for all non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static('uploads'));
@@ -77,17 +97,6 @@ try {
   console.error('Unable to setup demo accounts:', e.message);
 }
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/student', studentRoutes);
-app.use('/api/ai', aiRoutes);
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ message: 'DormFlow Backend is running' });
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -102,4 +111,5 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`DormFlow Backend running on http://localhost:${PORT}`);
+  console.log(`Frontend served at: http://localhost:${PORT}`);
 });

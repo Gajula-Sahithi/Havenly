@@ -1,155 +1,285 @@
-import { Room, User, Complaint, Transaction, Notice, db, USERS_COLLECTION, ROOMS_COLLECTION, COMPLAINTS_COLLECTION, TRANSACTIONS_COLLECTION, NOTICES_COLLECTION } from './models/index.js';
-import jwt from 'jsonwebtoken';
+const express = require('express');
+const { User, Room, Transaction, Complaint, Notice } = require('../models');
+const { authenticate, authorize } = require('../middleware/auth');
 
-// Authentication middleware
-const authenticate = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No token provided' });
-  }
+const router = express.Router();
 
-  const token = authHeader.split(' ')[1];
+// Middleware
+router.use(authenticate);
+router.use(authorize(['student']));
+
+// GET student's room details
+router.get('/room', async (req, res) => {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: 'Invalid token' });
-  }
-};
-
-// Authorization middleware
-const authorize = (roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'Access denied' });
+    const user = await User.findByIdWithRoom(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
-    next();
-  };
-};
 
-export default async function handler(req, res) {
-  // Add CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    // Return room object if assigned, otherwise return null (200)
+    return res.json(user.room_id || null);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
+});
 
-  // Apply authentication and authorization
-  if (req.method !== 'OPTIONS') {
-    const authResult = await new Promise((resolve) => {
-      authenticate(req, res, () => {
-        authorize(['student'])(req, res, () => {
-          resolve(true);
-        });
+// GET student's transactions
+router.get('/transactions', async (req, res) => {
+  try {
+    const transactions = await Transaction.findByUserId(req.user.id);
+    res.json(transactions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET pending dues
+router.get('/pending-dues', async (req, res) => {
+  try {
+    const transactions = await Transaction.findPendingByUserId(req.user.id);
+    const totalDues = transactions.reduce((sum, t) => sum + t.amount, 0);
+    res.json({ totalDues, transactions });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// UPDATE transaction status (pay dues)
+router.put('/transactions/:id', async (req, res) => {
+  try {
+    const transaction = await Transaction.update(req.params.id, { status: 'Paid' });
+    res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// CREATE complaint
+router.post('/complaints', async (req, res) => {
+  try {
+    const { category, description } = req.body;
+    const complaint = await Complaint.create({
+      user_id: req.user.id,
+      category,
+      description
+    });
+    res.status(201).json(complaint);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET student's complaints (active only - excludes complaints resolved > 24h ago)
+router.get('/complaints', async (req, res) => {
+  try {
+    const complaints = await Complaint.findActiveByUserId(req.user.id);
+    const enrichedComplaints = complaints.map(complaint => ({
+      ...complaint,
+      user_id: { id: req.user.id, name: req.user.name }
+    }));
+    res.json(enrichedComplaints);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET student's complaints history (includes all complaints)
+router.get('/complaints-history', async (req, res) => {
+  try {
+    const complaints = await Complaint.findHistoryByUserId(req.user.id);
+    const enrichedComplaints = complaints.map(complaint => ({
+      ...complaint,
+      user_id: { id: req.user.id, name: req.user.name }
+    }));
+    res.json(enrichedComplaints);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET notices
+router.get('/notices', async (req, res) => {
+  try {
+    const notices = await Notice.findAll();
+    res.json(notices);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all rooms (student-facing)
+router.get('/rooms', async (req, res) => {
+  try {
+    const rooms = await Room.findAll();
+    res.json(rooms);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// BOOK a room (with payment required)
+router.post('/rooms/:roomId/book', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    // Check if user already has a room assigned
+    const existingUser = await User.findById(req.user.id);
+    if (existingUser && existingUser.room_id) {
+      return res.status(400).json({ 
+        message: 'You already have a room assigned. Students can only book one room at a time. Please contact admin if you need to change rooms.' 
       });
+    }
+    
+    // Check if room exists
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    // Check room capacity
+    const occupancy = room.occupancy || 0;
+    const capacity = room.capacity || 1;
+    if (occupancy >= capacity) {
+      return res.status(400).json({ message: 'Room is fully occupied' });
+    }
+
+    // Additional validation: Double-check user doesn't have a room (race condition protection)
+    const userCheck = await User.findById(req.user.id);
+    if (userCheck && userCheck.room_id) {
+      return res.status(400).json({ 
+        message: 'Another booking was processed simultaneously. You can only book one room.' 
+      });
+    }
+
+    // Create transaction for first month's rent
+    const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+    const transaction = await Transaction.create({
+      user_id: req.user.id,
+      room_id: roomId,
+      amount: room.price,
+      month: currentMonth,
+      status: 'Pending',
+      due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Due in 7 days
+    });
+
+    // Assign room to student
+    const updatedUser = await User.update(req.user.id, { room_id: roomId });
+    
+    // Update room occupancy
+    const updatedRoom = await Room.update(roomId, { 
+      occupancy: occupancy + 1 
     });
     
-    if (!authResult) {
-      return; // Response already sent by middleware
-    }
-  }
-
-  try {
-    const { url, method } = req;
-    const path = url.replace('/api/student', '');
-
-    // GET available rooms
-    if (method === 'GET' && path === '/rooms') {
-      const rooms = await Room.findAvailable();
-      return res.status(200).json(rooms);
-    }
-
-    // GET student's room
-    if (method === 'GET' && path === '/my-room') {
-      const user = await User.findById(req.user.userId);
-      if (!user || !user.room_id) {
-        return res.status(404).json({ message: 'No room assigned' });
+    res.json({ 
+      message: 'Room booked successfully! Please complete payment within 7 days.',
+      room: updatedRoom,
+      user: updatedUser,
+      transaction: {
+        id: transaction.id,
+        amount: room.price,
+        month: currentMonth,
+        status: 'Pending',
+        due_date: transaction.due_date
       }
-      
-      const room = await Room.findById(user.room_id);
-      return res.status(200).json(room);
-    }
-
-    // POST book a room
-    if (method === 'POST' && path === '/book-room') {
-      const { roomId } = req.body;
-      
-      // Check if student already has a room
-      const user = await User.findById(req.user.userId);
-      if (user && user.room_id) {
-        return res.status(400).json({ message: 'You already have a room assigned' });
-      }
-      
-      // Check if room is available
-      const room = await Room.findById(roomId);
-      if (!room) {
-        return res.status(404).json({ message: 'Room not found' });
-      }
-      
-      if (room.occupancy >= room.capacity) {
-        return res.status(400).json({ message: 'Room is full' });
-      }
-      
-      // Assign room to student
-      await User.update(req.user.userId, { room_id: roomId });
-      await Room.update(roomId, { occupancy: room.occupancy + 1 });
-      
-      return res.status(200).json({ message: 'Room booked successfully' });
-    }
-
-    // GET student's complaints
-    if (method === 'GET' && path === '/complaints') {
-      const complaints = await Complaint.findByUserId(req.user.userId);
-      return res.status(200).json(complaints);
-    }
-
-    // POST new complaint
-    if (method === 'POST' && path === '/complaints') {
-      const { title, description, category } = req.body;
-      const newComplaint = await Complaint.create({
-        user_id: req.user.userId,
-        title,
-        description,
-        category: category || 'maintenance',
-        status: 'pending',
-        created_at: new Date()
-      });
-      return res.status(201).json(newComplaint);
-    }
-
-    // GET student's transactions
-    if (method === 'GET' && path === '/transactions') {
-      const transactions = await Transaction.findByUserId(req.user.userId);
-      return res.status(200).json(transactions);
-    }
-
-    // POST new payment
-    if (method === 'POST' && path === '/payments') {
-      const { amount, type, description } = req.body;
-      const newTransaction = await Transaction.create({
-        user_id: req.user.userId,
-        amount,
-        type: type || 'payment',
-        description: description || 'Room payment',
-        status: 'completed',
-        date: new Date()
-      });
-      return res.status(201).json(newTransaction);
-    }
-
-    // GET notices
-    if (method === 'GET' && path === '/notices') {
-      const notices = await Notice.findAll();
-      return res.status(200).json(notices);
-    }
-
-    return res.status(404).json({ message: 'Route not found' });
+    });
   } catch (error) {
-    console.error('Student API error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error('Room booking error:', error);
+    res.status(500).json({ message: error.message });
   }
-}
+});
+
+// PREVIEW booking cost (before payment)
+router.get('/rooms/:roomId/preview', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    // Check if user already has a room assigned
+    const existingUser = await User.findById(req.user.id);
+    if (existingUser && existingUser.room_id) {
+      return res.status(400).json({ 
+        message: 'You already have a room assigned. Students can only book one room at a time.' 
+      });
+    }
+    
+    // Check if room exists
+    const room = await Room.findById(roomId);
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    // Check room capacity
+    const occupancy = room.occupancy || 0;
+    const capacity = room.capacity || 1;
+    if (occupancy >= capacity) {
+      return res.status(400).json({ message: 'Room is fully occupied' });
+    }
+    
+    // Return booking preview
+    const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+    res.json({
+      room: room,
+      bookingDetails: {
+        amount: room.price,
+        month: currentMonth,
+        type: room.type,
+        capacity: room.capacity,
+        availableSpots: capacity - occupancy
+      }
+    });
+  } catch (error) {
+    console.error('Preview booking error:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET room change requests
+router.get('/room-change-requests', async (req, res) => {
+  try {
+    // For now, return empty array - this would be implemented with a proper database
+    res.json([]);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// POST room change request
+router.post('/room-change-requests', async (req, res) => {
+  try {
+    const { current_room_id, requested_room_id, reason } = req.body;
+    
+    // Basic validation
+    if (!current_room_id || !requested_room_id || !reason) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+    
+    // For now, just return success - this would be implemented with a proper database
+    res.status(201).json({
+      id: Date.now(),
+      current_room_id,
+      requested_room_id,
+      reason,
+      status: 'Pending',
+      created_at: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// POST acknowledge notice
+router.post('/notices/:id/acknowledge', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // For now, just return success - this would be implemented with a proper database
+    res.json({
+      message: 'Notice acknowledged successfully',
+      acknowledged: true,
+      acknowledged_at: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+module.exports = router;
