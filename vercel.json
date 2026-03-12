@@ -1,24 +1,35 @@
 {
   "version": 2,
   "installCommand": "cd frontend && npm install",
-  "buildCommand": "cd frontend && npm run build",
+  "buildCommand": "cd frontend && npx vite build",
   "outputDirectory": "frontend/dist",
+  "functions": {
+    "frontend/api/auth/login.js": {
+      "runtime": "nodejs18.x"
+    },
+    "frontend/api/auth/register.js": {
+      "runtime": "nodejs18.x"
+    },
+    "frontend/api/health.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
   "rewrites": [
     {
-      "source": "/api/auth",
-      "destination": "/frontend/api/auth.js"
+      "source": "/api/auth/login",
+      "destination": "/frontend/api/auth/login.js"
     },
     {
-      "source": "/api/admin/:path*",
-      "destination": "/frontend/api/admin.js"
+      "source": "/api/auth/register",
+      "destination": "/frontend/api/auth/register.js"
     },
     {
-      "source": "/api/student/:path*",
-      "destination": "/frontend/api/student.js"
+      "source": "/api/health",
+      "destination": "/frontend/api/health.js"
     },
     {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/frontend/index.html"
     }
   ]
 }
