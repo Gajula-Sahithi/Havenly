@@ -122,6 +122,56 @@ GEMINI_API_KEY=your-gemini-api-key
    docker run -p 5000:5000 --env-file backend/.env havenly
    ```
 
+### Vercel Deployment (Recommended)
+
+#### Option 1: Frontend Only on Vercel + Backend on Railway/Render
+
+1. **Deploy Frontend to Vercel:**
+   ```bash
+   # Install Vercel CLI
+   npm i -g vercel
+
+   # Deploy from frontend directory
+   cd frontend
+   vercel --prod
+   ```
+
+2. **Set Environment Variables in Vercel:**
+   - Go to Vercel Dashboard → Your Project → Settings → Environment Variables
+   - Add: `VITE_API_BASE_URL` = `https://your-backend-url.com`
+
+3. **Deploy Backend to Railway/Render:**
+   - Push your backend to GitHub
+   - Connect to Railway or Render
+   - Set environment variables in their dashboard
+
+#### Option 2: Full Stack on Vercel (Advanced)
+
+1. **Create API Functions Structure:**
+   ```bash
+   mkdir frontend/api
+   cp backend/routes/* frontend/api/
+   cp backend/models/* frontend/api/
+   cp backend/middleware/* frontend/api/
+   ```
+
+2. **Update Vercel Config:**
+   ```json
+   {
+     "functions": {
+       "api/*.js": {
+         "runtime": "nodejs18.x"
+       }
+     }
+   }
+   ```
+
+3. **Deploy:**
+   ```bash
+   cd frontend
+   vercel --prod
+   ```
+
 ### Default Login Credentials
 After first run, these demo accounts will be created automatically:
 

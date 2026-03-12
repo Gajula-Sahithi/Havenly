@@ -38,7 +38,7 @@ dormflow/
 │   │   └── index.js              # Mongoose schemas (User, Room, Complaint, Transaction, Notice)
 │   ├── routes/
 │   │   ├── auth.js               # Authentication routes
-│   │   ├── admin.js              # Admin API endpoints
+│   │   ├── admin.js              # Havenly - Hostel Management System
 │   │   ├── student.js            # Student API endpoints
 │   │   └── ai.js                 # Gemini AI integration
 │   ├── middleware/
@@ -56,12 +56,12 @@ dormflow/
     │   │   │   ├── AdminRooms.jsx
     │   │   │   ├── AdminComplaints.jsx
     │   │   │   ├── AdminTransactions.jsx
-    │   │   │   └── AdminNotices.jsx
-    │   │   └── student/
-    │   │       ├── StudentDashboard.jsx
-    │   │       ├── StudentPayments.jsx
-    │   │       ├── StudentComplaints.jsx
-    │   │       └── StudentNotices.jsx
+    │   │   └── AdminNotices.jsx
+    │   └── student/
+    │       ├── StudentDashboard.jsx
+    │       ├── StudentPayments.jsx
+    │       ├── StudentComplaints.jsx
+    │       └── StudentNotices.jsx
     │   ├── components/
     │   │   ├── Layout.jsx         # Main layout wrapper
     │   │   ├── Sidebar.jsx        # Navigation sidebar
