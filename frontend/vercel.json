@@ -3,28 +3,11 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "framework": "vite",
-  "functions": {
-    "api/auth.js": { "runtime": "nodejs18.x" },
-    "api/admin.js": { "runtime": "nodejs18.x" },
-    "api/student.js": { "runtime": "nodejs18.x" },
-    "api/init-data.js": { "runtime": "nodejs18.x" }
-  },
   "rewrites": [
-    {
-      "source": "/api/auth",
-      "destination": "/api/auth"
-    },
-    {
-      "source": "/api/admin/:path*",
-      "destination": "/api/admin"
-    },
-    {
-      "source": "/api/student/:path*",
-      "destination": "/api/student"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
 }
+
