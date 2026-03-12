@@ -17,10 +17,25 @@ try {
   }
   
   // Clean up the private key
-  const cleanPrivateKey = privateKey
-    .replace(/\\n/g, '\n')
-    .replace(/"/g, '')
-    .trim();
+  let cleanPrivateKey = privateKey;
+  
+  // Remove surrounding quotes if present
+  if (cleanPrivateKey.startsWith('"') && cleanPrivateKey.endsWith('"')) {
+    cleanPrivateKey = cleanPrivateKey.slice(1, -1);
+  }
+  
+  // Replace \n with actual newlines
+  cleanPrivateKey = cleanPrivateKey.replace(/\\n/g, '\n');
+  
+  // Ensure proper BEGIN and END lines
+  if (!cleanPrivateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    cleanPrivateKey = '-----BEGIN PRIVATE KEY-----\n' + cleanPrivateKey;
+  }
+  if (!cleanPrivateKey.includes('-----END PRIVATE KEY-----')) {
+    cleanPrivateKey = cleanPrivateKey + '\n-----END PRIVATE KEY-----';
+  }
+  
+  cleanPrivateKey = cleanPrivateKey.trim();
   
   console.log('Initializing Firebase with project:', projectId);
   
