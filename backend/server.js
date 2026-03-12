@@ -6,30 +6,41 @@ const path = require('path');
 
 // Initialize Firebase
 try {
-  // Read service account file
-  const fs = require('fs');
-  const serviceAccountPath = './serviceAccountKey.json';
+  // Use environment variables directly
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const databaseURL = process.env.FIREBASE_DATABASE_URL;
   
-  if (fs.existsSync(serviceAccountPath)) {
-    const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-    
-    // Fix the private key formatting
-    if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key
-        .replace(/\\n/g, '\n')
-        .replace(/-----BEGIN PRIVATE KEY-----\n/, '-----BEGIN PRIVATE KEY-----\n')
-        .replace(/\n-----END PRIVATE KEY-----/, '\n-----END PRIVATE KEY-----');
-    }
-    
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://dormlink-ec53d.firebaseio.com'
-    });
-  } else {
-    throw new Error('Service account file not found');
+  if (!projectId || !privateKey || !clientEmail) {
+    throw new Error('Missing Firebase credentials in environment variables');
   }
+  
+  // Clean up the private key
+  const cleanPrivateKey = privateKey
+    .replace(/\\n/g, '\n')
+    .replace(/"/g, '')
+    .trim();
+  
+  console.log('Initializing Firebase with project:', projectId);
+  
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: projectId,
+      privateKey: cleanPrivateKey,
+      clientEmail: clientEmail
+    }),
+    databaseURL: databaseURL
+  });
+  
+  console.log('Firebase initialized successfully');
 } catch (error) {
   console.error('Firebase initialization error:', error.message);
+  console.error('Environment variables check:');
+  console.error('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'SET' : 'NOT SET');
+  console.error('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'NOT SET');
+  console.error('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'SET' : 'NOT SET');
+  console.error('FIREBASE_DATABASE_URL:', process.env.FIREBASE_DATABASE_URL ? 'SET' : 'NOT SET');
   process.exit(1);
 }
 
