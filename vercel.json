@@ -1,14 +1,14 @@
 {
   "version": 2,
   "functions": {
-    "backend/api/minimal.js": {
+    "api/index.js": {
       "maxDuration": 10
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/backend/api/minimal.js"
+      "destination": "/api/index.js"
     }
   ],
   "env": {
