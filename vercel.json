@@ -2,25 +2,18 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend/server.js",
+      "src": "backend/api/index.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/backend/server.js"
+      "dest": "/backend/api/index.js"
     },
     {
       "src": "/(.*)",
-      "dest": "/frontend/dist/$1"
+      "dest": "/backend/api/index.js"
     }
   ],
   "env": {
@@ -30,10 +23,5 @@
     "JWT_SECRET": "dormlink_super_secret_jwt_key_2024_secure_production",
     "GEMINI_API_KEY": "AIzaSyChBeZwGc64e3xtJuxkGk36jU-8e-njUu0",
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "backend/server.js": {
-      "maxDuration": 10
-    }
   }
 }
