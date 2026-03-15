@@ -1,9 +1,14 @@
 {
   "version": 2,
-  "builds": [
+  "functions": {
+    "backend/api/minimal.js": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
     {
-      "src": "backend/api/minimal.js",
-      "use": "@vercel/node"
+      "source": "/(.*)",
+      "destination": "/backend/api/minimal.js"
     }
   ],
   "env": {

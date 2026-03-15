@@ -1,17 +1,12 @@
 require('dotenv').config();
 const express = require('express');
-const path = require('path');
-const cors = require('cors');
 
-// Create Express app
 const app = express();
 
-// Middleware
-app.use(cors());
+// Basic middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Basic health check
+// Health check
 app.get('/health', (req, res) => {
   res.json({ message: 'Havenly API is running', status: 'ok' });
 });
@@ -29,12 +24,12 @@ app.get('/debug-env', (req, res) => {
   });
 });
 
-// API test endpoint
+// API test
 app.get('/api/test', (req, res) => {
   res.json({ message: 'API is working', timestamp: new Date().toISOString() });
 });
 
-// Serve a simple HTML page for all routes
+// Main page - serve HTML for all routes
 app.get('*', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -63,9 +58,6 @@ app.get('*', (req, res) => {
           color: #4CAF50; 
           font-weight: bold; 
           font-size: 20px;
-        }
-        .error { 
-          color: #ff6b6b; 
         }
         .btn {
           background: #4CAF50;
@@ -98,13 +90,8 @@ app.get('*', (req, res) => {
           <a href="/api/test" class="btn">🚀 API Test</a>
         </div>
         <div style="margin-top: 30px;">
-          <h3>📱 Next Steps:</h3>
-          <p>1. Test the API endpoints above</p>
-          <p>2. Check environment variables are set correctly</p>
-          <p>3. Once API works, we'll add the React frontend</p>
-        </div>
-        <div style="margin-top: 20px; font-size: 14px; opacity: 0.8;">
-          <p>Current path: ${req.path}</p>
+          <h3>📱 Current Info:</h3>
+          <p>Path: ${req.path}</p>
           <p>Timestamp: ${new Date().toISOString()}</p>
         </div>
       </div>
@@ -113,5 +100,4 @@ app.get('*', (req, res) => {
   `);
 });
 
-// Export for Vercel
 module.exports = app;
