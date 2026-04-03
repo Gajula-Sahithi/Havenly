@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader, Users, Trash2, Search, Shield, Mail, Phone, Calendar, AlertTriangle, CheckCircle, Crown, Lock, Eye, Edit, UserPlus, RefreshCw } from 'lucide-react';
 import { adminAPI } from '../../utils/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 const SuperAdmin = () => {
   const [users, setUsers] = useState([]);
@@ -307,10 +308,7 @@ const SuperAdmin = () => {
                     <div className="flex items-center space-x-2 text-sm text-slate-600">
                       <Calendar size={14} className="text-slate-400" />
                       <span>
-                        {user.createdAt ? 
-                          new Date(user.createdAt.toDate ? user.createdAt.toDate() : user.createdAt).toLocaleDateString() 
-                          : 'Unknown'
-                        }
+                        {formatDate(user.createdAt)}
                       </span>
                     </div>
                   </td>
@@ -402,13 +400,7 @@ const SuperAdmin = () => {
                       <p className="text-sm"><span className="font-medium">Room:</span> {profileUser.room_id?.room_number || 'Assigned'}</p>
                     )}
                     <p className="text-sm"><span className="font-medium">Joined:</span> 
-                      {profileUser.createdAt ? 
-                        new Date(profileUser.createdAt.toDate ? profileUser.createdAt.toDate() : profileUser.createdAt).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        }) : 'Unknown'
-                      }
+                      {formatDate(profileUser.createdAt, { month: 'long' })}
                     </p>
                   </div>
                 </div>

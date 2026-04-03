@@ -25,6 +25,10 @@ const AdminRooms = () => {
     try {
       setLoading(true);
       const response = await adminAPI.getRooms();
+      console.log('=== ROOMS DATA RECEIVED BY FRONTEND ===');
+      response.data.forEach(room => {
+        console.log(`Room ${room.room_number}: paymentStatus=${room.paymentStatus}, occupancy=${room.occupancy}, pending=${room.totalPending}`);
+      });
       setRooms(response.data);
     } catch (error) {
       console.error('Error fetching rooms:', error);
@@ -224,10 +228,12 @@ const AdminRooms = () => {
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Room No.</th>
+                <th className="text-left py-3 px-4 font-semibold text-slate-900">Photo</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Wing</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Type</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Price</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Occupancy</th>
+                <th className="text-left py-3 px-4 font-semibold text-slate-900">Payment Status</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Residents</th>
                 <th className="text-left py-3 px-4 font-semibold text-slate-900">Actions</th>
               </tr>
@@ -236,6 +242,26 @@ const AdminRooms = () => {
               {rooms.map((room) => (
                 <tr key={room.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="py-3 px-4 font-medium text-slate-900">{room.room_number}</td>
+                  <td className="py-3 px-4">
+                    {room.photo_url ? (
+                      <img 
+                        src={`/uploads/${room.photo_url}`}
+                        alt={`Room ${room.room_number}`}
+                        className="w-12 h-12 object-cover rounded-lg border border-slate-200"
+                        onError={(e) => {
+                          console.error('Failed to load room photo:', room.photo_url);
+                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yNCAzMkMxOS41ODUyIDMyIDE2IDI4LjQxNDggMTYgMjRDMTYgMTkuNTg1MiAxOS41ODUyIDE2IDI0IDE2QzI4LjQxNDggMTYgMzIgMTkuNTg1MiAzMiAyNEMzMiAyOC40MTQ4IDI4LjQxNDggMzIgMjQgMzJaIiBmaWxsPSIjOTQ5OEFFIi8+Cjwvc3ZnPgo=';
+                        }}
+                        onLoad={() => {
+                          console.log('Room photo loaded successfully:', room.photo_url);
+                        }}
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-slate-200 rounded-lg border border-slate-300 flex items-center justify-center">
+                        <span className="text-slate-400 text-xs">No photo</span>
+                      </div>
+                    )}
+                  </td>
                   <td className="py-3 px-4 text-slate-600">{room.wing}</td>
                   <td className="py-3 px-4 text-slate-600">{room.type}</td>
                   <td className="py-3 px-4 text-slate-600 font-medium">₹{room.price}</td>
@@ -249,6 +275,33 @@ const AdminRooms = () => {
                     <span className="text-xs text-slate-600 mt-1">
                       {room.occupancy}/{room.capacity}
                     </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-col space-y-1">
+                      {/* Payment Status Badge */}
+                      <span className={`badge text-xs ${
+                        room.paymentStatus === 'paid' ? 'badge-paid' : 
+                        room.paymentStatus === 'payment_due' ? 'badge-pending-due' : 
+                        'badge-available'
+                      }`}>
+                        {(() => {
+                          console.log(`Rendering Room ${room.room_number} status: ${room.paymentStatus} (pending: ₹${room.totalPending || 0})`);
+                          return room.paymentStatus === 'paid' ? 'Paid' : 
+                                 room.paymentStatus === 'payment_due' ? 'Payment Due' : 
+                                 'Available';
+                        })()}
+                      </span>
+                      
+                      {/* Payment Summary */}
+                      {room.transactionCount > 0 && (
+                        <div className="text-xs text-slate-600">
+                          <div>₹{room.totalPaid} paid</div>
+                          {room.totalPending > 0 && (
+                            <div className="text-red-600">₹{room.totalPending} pending</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4">
                     <div className="space-y-1">

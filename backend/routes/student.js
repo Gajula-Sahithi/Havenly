@@ -119,7 +119,7 @@ router.get('/complaints-history', async (req, res) => {
 // GET notices
 router.get('/notices', async (req, res) => {
   try {
-    const notices = await Notice.findAll();
+    const notices = await Notice.findAll(req.user.id);
     res.json(notices);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -237,9 +237,10 @@ router.get('/rooms/:roomId/preview', async (req, res) => {
     const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
     res.json({
       room: room,
-      bookingDetails: {
+      payment: {
         amount: room.price,
         month: currentMonth,
+        description: `First month's rent for Room ${room.room_number}`,
         type: room.type,
         capacity: room.capacity,
         availableSpots: capacity - occupancy
@@ -289,13 +290,8 @@ router.post('/room-change-requests', async (req, res) => {
 router.post('/notices/:id/acknowledge', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // For now, just return success - this would be implemented with a proper database
-    res.json({
-      message: 'Notice acknowledged successfully',
-      acknowledged: true,
-      acknowledged_at: new Date().toISOString()
-    });
+    const result = await Notice.acknowledge(id, req.user.id);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

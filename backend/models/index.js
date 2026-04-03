@@ -9,6 +9,7 @@ const ROOMS_COLLECTION = 'rooms';
 const COMPLAINTS_COLLECTION = 'complaints';
 const TRANSACTIONS_COLLECTION = 'transactions';
 const NOTICES_COLLECTION = 'notices';
+const ACKNOWLEDGMENTS_COLLECTION = 'acknowledgments';
 
 // ===================== USER OPERATIONS =====================
 const User = {
@@ -135,6 +136,59 @@ const Room = {
     });
 
     return { ...room, residents };
+  },
+
+  async findWithPaymentStatus(id) {
+    const room = await this.findById(id);
+    if (!room) return null;
+
+    // Get all transactions for this room
+    const transactions = await db.collection(TRANSACTIONS_COLLECTION).where('room_id', '==', id).get();
+    const transactionData = transactions.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Calculate payment status
+    const paidTransactions = transactionData.filter(t => t.status === 'Paid');
+    const pendingTransactions = transactionData.filter(t => t.status === 'Pending');
+    const totalPaid = paidTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const totalPending = pendingTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+    // Determine room status based on payments and occupancy
+    let status = 'available';
+    
+    // If room has residents, check payment status
+    if (room.occupancy > 0) {
+      if (transactionData.length === 0) {
+        // Room has residents but no transactions - payment due
+        status = 'payment_due';
+      } else if (pendingTransactions.length > 0) {
+        // Has pending payments
+        status = 'payment_due';
+      } else {
+        // All payments are paid
+        status = 'paid';
+      }
+    } else {
+      // Room is empty - available
+      status = 'available';
+    }
+
+    console.log(`Room ${room.room_number} (${room.occupancy}/${room.capacity}):`, {
+      transactionCount: transactionData.length,
+      paidCount: paidTransactions.length,
+      pendingCount: pendingTransactions.length,
+      totalPending,
+      status
+    });
+
+    return {
+      ...room,
+      paymentStatus: status,
+      totalPaid,
+      totalPending,
+      transactionCount: transactionData.length,
+      paidTransactions: paidTransactions.length,
+      pendingTransactions: pendingTransactions.length
+    };
   }
 };
 
@@ -420,28 +474,95 @@ const Notice = {
       title,
       content,
       date: new Date(),
+      expires_at: noticeData.expires_at ? new Date(noticeData.expires_at) : new Date(Date.now() + 24 * 60 * 60 * 1000), // Default 24h
+      priority: noticeData.priority || 'medium',
       createdBy
     });
 
     return { id: noticeRef.id, ...noticeData };
   },
 
-  async findAll() {
-    const snapshot = await db.collection(NOTICES_COLLECTION).orderBy('date', 'desc').get();
+  async findAll(userId = null, isAdmin = false) {
+    let query = db.collection(NOTICES_COLLECTION);
+    
+    // Non-admins only see non-expired notices
+    if (!isAdmin) {
+      // Note: In a real app we'd use .where('expires_at', '>', new Date()), 
+      // but without composite indexes in Firestore we'll filter locally for now.
+    }
+    
+    const snapshot = await query.orderBy('date', 'desc').get();
     const notices = [];
+    const now = new Date();
     
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      const creator = data.createdBy ? await User.findById(data.createdBy) : null;
+      
+      // Filter out expired notices for students
+      if (!isAdmin && data.expires_at) {
+        const expiry = data.expires_at.toDate ? data.expires_at.toDate() : new Date(data.expires_at);
+        if (expiry < now) continue;
+      }
 
-      notices.push({
+      const creator = data.createdBy ? await User.findById(data.createdBy) : null;
+      
+      const notice = {
         id: doc.id,
         ...data,
         createdBy: creator ? { id: creator.id, name: creator.name } : null
-      });
+      };
+
+      // Add acknowledgment status if userId is provided (for students)
+      if (userId) {
+        const ackSnapshot = await db.collection(ACKNOWLEDGMENTS_COLLECTION)
+          .where('notice_id', '==', doc.id)
+          .where('user_id', '==', userId)
+          .limit(1)
+          .get();
+        
+        if (!ackSnapshot.empty) {
+          const ackData = ackSnapshot.docs[0].data();
+          notice.acknowledged = true;
+          notice.acknowledged_at = ackData.acknowledged_at;
+        } else {
+          notice.acknowledged = false;
+        }
+      }
+
+      // Add acknowledgment count if isAdmin (for admin dashboard)
+      if (isAdmin) {
+        const ackCountSnapshot = await db.collection(ACKNOWLEDGMENTS_COLLECTION)
+          .where('notice_id', '==', doc.id)
+          .get();
+        notice.acknowledgeCount = ackCountSnapshot.size;
+      }
+
+      notices.push(notice);
     }
     
     return notices;
+  },
+
+  async acknowledge(noticeId, userId) {
+    if (!noticeId || !userId) throw new Error('Notice ID and User ID are required');
+    
+    // Check if already acknowledged
+    const existing = await db.collection(ACKNOWLEDGMENTS_COLLECTION)
+      .where('notice_id', '==', noticeId)
+      .where('user_id', '==', userId)
+      .get();
+      
+    if (!existing.empty) {
+      return { message: 'Already acknowledged', id: existing.docs[0].id };
+    }
+
+    const ackRef = await db.collection(ACKNOWLEDGMENTS_COLLECTION).add({
+      notice_id: noticeId,
+      user_id: userId,
+      acknowledged_at: new Date()
+    });
+
+    return { id: ackRef.id, message: 'Acknowledged successfully' };
   },
 
   async findById(id) {
@@ -462,5 +583,6 @@ module.exports = {
   ROOMS_COLLECTION,
   COMPLAINTS_COLLECTION,
   TRANSACTIONS_COLLECTION,
-  NOTICES_COLLECTION
+  NOTICES_COLLECTION,
+  ACKNOWLEDGMENTS_COLLECTION
 };

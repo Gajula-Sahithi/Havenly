@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Loader, Wand2 } from 'lucide-react';
 import { adminAPI, aiAPI } from '../../utils/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 const AdminNotices = () => {
   const [notices, setNotices] = useState([]);
@@ -10,7 +11,9 @@ const AdminNotices = () => {
   const [draftedContent, setDraftedContent] = useState('');
   const [formData, setFormData] = useState({
     title: '',
-    content: ''
+    content: '',
+    expires_at: '',
+    priority: 'medium'
   });
   const [draftLoading, setDraftLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -67,8 +70,16 @@ const AdminNotices = () => {
 
     try {
       setSubmitting(true);
-      await adminAPI.createNotice(formData);
-      setFormData({ title: '', content: '' });
+      
+      // Calculate expiry date if selected
+      let expiryDate = null;
+      if (formData.expires_at) {
+        const hours = parseInt(formData.expires_at);
+        expiryDate = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      }
+
+      await adminAPI.createNotice({ ...formData, expires_at: expiryDate });
+      setFormData({ title: '', content: '', expires_at: '', priority: 'medium' });
       setShowForm(false);
       await fetchNotices();
     } catch (error) {
@@ -189,6 +200,37 @@ const AdminNotices = () => {
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Priority</label>
+                <select
+                  value={formData.priority}
+                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Auto-Expire After</label>
+                <select
+                  value={formData.expires_at}
+                  onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="">Never (Manual Archive)</option>
+                  <option value="1">1 Hour (Testing)</option>
+                  <option value="24">24 Hours</option>
+                  <option value="48">48 Hours</option>
+                  <option value="168">1 Week</option>
+                </select>
+              </div>
+            </div>
+
             <div className="flex items-center space-x-3 pt-4">
               <button
                 type="submit"
@@ -231,15 +273,18 @@ const AdminNotices = () => {
               <div className="flex items-start justify-between mb-3">
                 <h3 className="text-xl font-bold text-slate-900">{notice.title}</h3>
                 <span className="text-xs text-slate-500">
-                  {(notice.date && (notice.date.toDate ? notice.date.toDate() : new Date(notice.date))).toLocaleDateString()}
+                  {formatDate(notice.date)}
                 </span>
               </div>
               <p className="text-slate-600 whitespace-pre-wrap leading-relaxed mb-3">
                 {notice.content}
               </p>
-              <p className="text-xs text-slate-500">
-                Published by: {notice.createdBy?.name || 'Admin'}
-              </p>
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>Published by: {notice.createdBy?.name || 'Admin'}</span>
+                <span className="flex items-center space-x-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-medium">
+                  <span>{notice.acknowledgeCount || 0} Acknowledged</span>
+                </span>
+              </div>
             </div>
           ))
         )}

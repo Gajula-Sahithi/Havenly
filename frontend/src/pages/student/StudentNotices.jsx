@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader, Bell, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { studentAPI } from '../../utils/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 const StudentNotices = () => {
   const [notices, setNotices] = useState([]);
@@ -28,7 +29,7 @@ const StudentNotices = () => {
       setAcknowledging(noticeId);
       await studentAPI.acknowledgeNotice(noticeId);
       
-      // Update local state
+      // Update local state for immediate feedback
       setNotices(notices.map(notice => 
         notice.id === noticeId 
           ? { ...notice, acknowledged: true, acknowledged_at: new Date().toISOString() }
@@ -114,22 +115,22 @@ const StudentNotices = () => {
                     <p className="text-slate-700 mb-3 whitespace-pre-wrap">
                       {notice.content}
                     </p>
-                    <div className="flex items-center space-x-4 text-sm text-slate-500">
-                      <div className="flex items-center space-x-1">
-                        <Clock size={14} />
-                        <span>
-                          Posted: {new Date(notice.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      {notice.expires_at && (
+                      <div className="flex items-center space-x-4 text-sm text-slate-500">
                         <div className="flex items-center space-x-1">
                           <Clock size={14} />
                           <span>
-                            Expires: {new Date(notice.expires_at).toLocaleDateString()}
+                            Posted: {formatDate(notice.date || notice.created_at)}
                           </span>
                         </div>
-                      )}
-                    </div>
+                        {notice.expires_at && (
+                          <div className="flex items-center space-x-1">
+                            <Clock size={14} />
+                            <span>
+                              Expires: {formatDate(notice.expires_at)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                   </div>
                 </div>
                 
@@ -141,7 +142,7 @@ const StudentNotices = () => {
                       <div>
                         <p className="text-sm font-medium">Acknowledged</p>
                         <p className="text-xs">
-                          {new Date(notice.acknowledged_at).toLocaleDateString()}
+                          {formatDate(notice.acknowledged_at)}
                         </p>
                       </div>
                     </div>

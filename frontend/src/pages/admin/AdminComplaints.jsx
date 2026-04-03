@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader, RefreshCw, History, Clock } from 'lucide-react';
 import { adminAPI } from '../../utils/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 const AdminComplaints = () => {
   const [complaints, setComplaints] = useState([]);
@@ -11,62 +12,6 @@ const AdminComplaints = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [showHistory, setShowHistory] = useState(false);
 
-  // Helper function to format dates safely
-  const formatDate = (dateValue) => {
-    if (!dateValue) return 'No Date';
-    
-    try {
-      let date;
-      
-      // Handle Firebase Timestamp object with toDate method
-      if (dateValue && typeof dateValue === 'object' && typeof dateValue.toDate === 'function') {
-        date = dateValue.toDate();
-      }
-      // Handle Firebase Timestamp with seconds property
-      else if (dateValue && typeof dateValue === 'object' && dateValue.seconds) {
-        date = new Date(dateValue.seconds * 1000);
-      }
-      // Handle JavaScript Date
-      else if (dateValue instanceof Date) {
-        date = dateValue;
-      }
-      // Handle string
-      else if (typeof dateValue === 'string') {
-        date = new Date(dateValue);
-      }
-      // Handle number
-      else if (typeof dateValue === 'number') {
-        date = new Date(dateValue);
-      }
-      else {
-        // If it's an object but not a timestamp, try to convert
-        if (dateValue && typeof dateValue === 'object') {
-          // Try to get seconds from nested structure
-          if (dateValue._seconds || dateValue._nanoseconds) {
-            date = new Date((dateValue._seconds || 0) * 1000 + (dateValue._nanoseconds || 0) / 1000000);
-          } else {
-            return 'Invalid Date';
-          }
-        } else {
-          return 'Invalid Date';
-        }
-      }
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return 'Invalid Date';
-      }
-      
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (error) {
-      console.error('Date formatting error:', error);
-      return 'Invalid Date';
-    }
-  };
 
   useEffect(() => {
     fetchComplaints();

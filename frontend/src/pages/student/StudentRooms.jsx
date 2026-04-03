@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader, Home, MapPin, Users, DollarSign, Check, X, CreditCard, Calendar } from 'lucide-react';
+import { Loader, Home, MapPin, Users, DollarSign, X, CreditCard, Calendar } from 'lucide-react';
 import { studentAPI } from '../../utils/api';
 
 const PLACEHOLDER_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlJvb208L3RleHQ+PC9zdmc+';
@@ -49,16 +49,8 @@ const StudentRooms = () => {
       return;
     }
 
-    // Check if user already has a room
     if (userRoom) {
       alert('You already have a room assigned. You can only book one room at a time. Please contact admin if you need to change rooms.');
-      return;
-    }
-
-    // Additional check to prevent multiple bookings
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.room_id) {
-      alert('You already have a room assigned. Students can only book one room.');
       return;
     }
 
@@ -128,51 +120,6 @@ const StudentRooms = () => {
         </p>
       </div>
 
-      {/* Current Room Status */}
-      {userRoom ? (
-        <div className="card border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 space-y-3 sm:space-y-0">
-            <Check className="text-green-600 flex-shrink-0 mt-1" size={24} />
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-slate-900 mb-2">Your Current Booking</h2>
-              <p className="text-slate-600 mb-2 text-responsive-sm">
-                You are currently assigned to Room <span className="font-semibold">{userRoom.room_number}</span> in <span className="font-semibold">{userRoom.wing}</span> wing.
-              </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                <p className="text-blue-800 text-sm font-medium">
-                  💰 <strong>Rent Status:</strong> {userRoom.paid_rent ? '✅ Paid' : '⏳ Pending'}
-                </p>
-                {userRoom.lastPaymentDate && (
-                  <p className="text-blue-600 text-xs mt-1">
-                    Last payment: {new Date(userRoom.lastPaymentDate.toDate ? userRoom.lastPaymentDate.toDate() : userRoom.lastPaymentDate).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-                <p className="text-amber-800 text-sm font-medium">
-                  ⚠️ <strong>One Room Policy:</strong> Students can only book one room at a time. Please contact admin if you need to change rooms.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/student/payments')}
-                className="btn-secondary text-sm w-full sm:w-auto"
-              >
-                View Room Details & Payments
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="card border-2 border-yellow-200 bg-gradient-to-br from-yellow-50 to-amber-50">
-          <p className="text-slate-700 font-semibold text-responsive-sm">
-            👋 No room assigned yet. Select a room below to book!
-          </p>
-          <p className="text-slate-600 text-xs mt-2 text-responsive-sm">
-            Note: Students can only book one room at a time.
-          </p>
-        </div>
-      )}
-
       {/* Rooms Grid - Mobile Optimized */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
         {rooms.map((room) => {
@@ -200,13 +147,16 @@ const StudentRooms = () => {
                     }
                     
                     // Accept full URLs, relative server paths, and base64 data URIs
-                    if (/^(https?:\/\/|data:image\/|\/)/.test(url)) return url;
+                    if (/^(https?:\/\/|data:image\/)/.test(url)) return url;
                     
-                    // If it's a plain filename, try backend uploads but fallback to placeholder
+                    // If it's a plain filename, use the backend uploads URL
                     if (/^[^/]+\.(jpg|jpeg|png|gif|webp)$/i.test(url)) {
-                      // For development, just use placeholder for local files
-                      console.log(`Local file detected for room ${room.room_number}, using placeholder`);
-                      return PLACEHOLDER_SVG;
+                      return `/uploads/${url}`;
+                    }
+                    
+                    // If it starts with /uploads/, use the backend URL
+                    if (url.startsWith('/uploads/')) {
+                      return url;
                     }
                     
                     console.warn(`Invalid photo_url format for room ${room.room_number}:`, url);
@@ -332,10 +282,10 @@ const StudentRooms = () => {
               <div className="bg-indigo-50 rounded-lg p-4">
                 <h4 className="font-semibold text-indigo-900 mb-2">Room Details</h4>
                 <div className="text-sm text-indigo-700 space-y-1">
-                  <p>Room {paymentPreview.room.room_number}, Wing {paymentPreview.room.wing}</p>
-                  <p>Type: {paymentPreview.room.type}</p>
-                  <p>Capacity: {paymentPreview.room.capacity} person(s)</p>
-                  <p>Occupancy: {paymentPreview.room.occupancy}/{paymentPreview.room.capacity}</p>
+                  <p>Room {paymentPreview.room?.room_number}, Wing {paymentPreview.room?.wing}</p>
+                  <p>Type: {paymentPreview.room?.type}</p>
+                  <p>Capacity: {paymentPreview.room?.capacity} person(s)</p>
+                  <p>Occupancy: {paymentPreview.room?.occupancy}/{paymentPreview.room?.capacity}</p>
                 </div>
               </div>
 
@@ -345,13 +295,13 @@ const StudentRooms = () => {
                 <div className="text-sm text-green-700 space-y-1">
                   <div className="flex items-center justify-between">
                     <span>Amount:</span>
-                    <span className="font-bold text-lg">₹{paymentPreview.payment.amount}</span>
+                    <span className="font-bold text-lg">₹{paymentPreview.payment?.amount || 0}</span>
                   </div>
                   <div className="flex items-center">
                     <Calendar size={16} className="mr-2 flex-shrink-0" />
-                    <span>{paymentPreview.payment.month}</span>
+                    <span>{paymentPreview.payment?.month}</span>
                   </div>
-                  <p className="text-xs text-green-600 mt-2">{paymentPreview.payment.description}</p>
+                  <p className="text-xs text-green-600 mt-2">{paymentPreview.payment?.description}</p>
                 </div>
               </div>
 

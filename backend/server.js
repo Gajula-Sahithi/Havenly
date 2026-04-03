@@ -73,7 +73,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve static files from uploads folder
-app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -82,14 +82,13 @@ const studentRoutes = require('./routes/student');
 const aiRoutes = require('./routes/ai');
 
 // API Routes
-// Serve static files from frontend build
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
-
-// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/ai', aiRoutes);
+
+// Serve static files from frontend build
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -100,9 +99,6 @@ app.get('/health', (req, res) => {
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
-
-// Serve static files from uploads directory
-app.use('/uploads', express.static('uploads'));
 
 // Body parser error handler (catch invalid JSON payloads)
 app.use((err, req, res, next) => {

@@ -38,19 +38,31 @@ const upload = multer({
 router.use(authenticate);
 router.use(authorize(['admin']));
 
-// GET all rooms with residents
+// GET all rooms with residents and payment status
 router.get('/rooms', async (req, res) => {
   try {
     const rooms = await Room.findAll();
-    const roomsWithResidents = await Promise.all(
+    const roomsWithDetails = await Promise.all(
       rooms.map(async (room) => {
         const roomWithResidents = await Room.findWithResidents(room.id);
-        return roomWithResidents;
+        const roomWithPaymentStatus = await Room.findWithPaymentStatus(room.id);
+        
+        // Merge both results
+        return {
+          ...roomWithResidents,
+          ...roomWithPaymentStatus
+        };
       })
     );
-    res.json(roomsWithResidents);
+    
+    console.log('=== ROOMS DATA SENT TO FRONTEND ===');
+    roomsWithDetails.forEach(room => {
+      console.log(`Room ${room.room_number}: paymentStatus=${room.paymentStatus}, occupancy=${room.occupancy}, pending=${room.totalPending}`);
+    });
+    
+    res.json(roomsWithDetails);
   } catch (error) {
-    console.error('Error updating complaint:', error);
+    console.error('Error fetching rooms:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -156,6 +168,17 @@ router.get('/transactions', async (req, res) => {
   }
 });
 
+// UPDATE transaction status
+router.put('/transactions/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const transaction = await Transaction.update(req.params.id, { status });
+    res.json(transaction);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET transactions by room
 router.get('/transactions-by-room', async (req, res) => {
   try {
@@ -163,11 +186,17 @@ router.get('/transactions-by-room', async (req, res) => {
     const roomTransactions = await Promise.all(
       rooms.map(async (room) => {
         const transactions = await Transaction.findByRoomId(room.id);
+        const roomWithPaymentStatus = await Room.findWithPaymentStatus(room.id);
+        
         const totalDues = transactions
           .filter(t => t.status === 'Pending')
           .reduce((sum, t) => sum + t.amount, 0);
+        
         return {
-          room,
+          room: {
+            ...room,
+            ...roomWithPaymentStatus
+          },
           transactions,
           totalDues
         };
@@ -182,8 +211,14 @@ router.get('/transactions-by-room', async (req, res) => {
 // CREATE notice
 router.post('/notices', async (req, res) => {
   try {
-    const { title, content } = req.body;
-    const notice = await Notice.create({ title, content, createdBy: req.user.id });
+    const { title, content, expires_at, priority } = req.body;
+    const notice = await Notice.create({ 
+      title, 
+      content, 
+      expires_at,
+      priority,
+      createdBy: req.user.id 
+    });
     res.status(201).json(notice);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -193,7 +228,7 @@ router.post('/notices', async (req, res) => {
 // GET all notices
 router.get('/notices', async (req, res) => {
   try {
-    const notices = await Notice.findAll();
+    const notices = await Notice.findAll(null, true);
     res.json(notices);
   } catch (error) {
     res.status(500).json({ message: error.message });

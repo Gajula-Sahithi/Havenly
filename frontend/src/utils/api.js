@@ -41,6 +41,7 @@ export const adminAPI = {
   updateComplaint: (id, data) => api.put(`/admin/complaints/${id}`, data),
   getTransactions: () => api.get('/admin/transactions'),
   getTransactionsByRoom: () => api.get('/admin/transactions-by-room'),
+  updateTransaction: (id, data) => api.put(`/admin/transactions/${id}`, data),
   createNotice: (data) => api.post('/admin/notices', data),
   getNotices: () => api.get('/admin/notices'),
   // Super Admin APIs

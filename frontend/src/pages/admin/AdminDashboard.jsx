@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, AlertCircle, DollarSign, Zap, Loader } from 'lucide-react';
 import { adminAPI, aiAPI } from '../../utils/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -9,46 +10,6 @@ const AdminDashboard = () => {
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [loadingStats, setLoadingStats] = useState(true);
 
-  // Helper function to format dates safely
-  const formatDate = (dateValue) => {
-    if (!dateValue) return 'No Date';
-    
-    try {
-      let date;
-      if (dateValue.toDate) {
-        // Firebase Timestamp
-        date = dateValue.toDate();
-      } else if (dateValue instanceof Date) {
-        // JavaScript Date object
-        date = dateValue;
-      } else if (typeof dateValue === 'string') {
-        // String date
-        date = new Date(dateValue);
-      } else if (typeof dateValue === 'number') {
-        // Timestamp number
-        date = new Date(dateValue);
-      } else if (dateValue && typeof dateValue === 'object' && dateValue.seconds) {
-        // Firebase Timestamp object (alternative format)
-        date = new Date(dateValue.seconds * 1000);
-      } else {
-        return 'Invalid Date';
-      }
-      
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return 'Invalid Date';
-      }
-      
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch (error) {
-      console.error('Date formatting error:', error, 'for value:', dateValue);
-      return 'Invalid Date';
-    }
-  };
 
   useEffect(() => {
     fetchDashboardData();
