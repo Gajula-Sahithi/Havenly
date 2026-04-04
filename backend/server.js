@@ -191,14 +191,13 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Export app for serverless platforms like Vercel, else bind to port
-if (process.env.VERCEL) {
-  console.log('Exporting app for Vercel serverless environment');
-  module.exports = app;
-} else {
-  const server = app.listen(PORT, () => {
+// ALWAYS export the app directly so Vercel Serverless Function receives a valid Express function
+module.exports = app;
+
+// Only bind to a port if running locally (not in a Vercel imported environment)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
     console.log(`DormFlow Backend running on http://localhost:${PORT}`);
     console.log(`Frontend served at: http://localhost:${PORT}`);
   });
-  module.exports = server;
 }
