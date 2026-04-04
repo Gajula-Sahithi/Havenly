@@ -4,7 +4,7 @@
   "description": "Unified single server setup for DormFlow/Havenly",
   "scripts": {
     "start": "node backend/server.js",
-    "build": "npm run build -w frontend",
+    "build": "npm run build -w frontend && node -e \"require('fs').cpSync('frontend/dist', 'dist', {recursive:true})\"",
     "install:all": "npm install"
   },
   "engines": {
