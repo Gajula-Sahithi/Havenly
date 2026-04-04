@@ -17,13 +17,6 @@ const UserDocument = ({ filename, userName, className }) => {
 
     const fetchImage = async () => {
       try {
-        // Handle absolute URLs (Firebase Storage)
-        if (filename.startsWith('http') || filename.startsWith('data:')) {
-          setSrc(filename);
-          setLoading(false);
-          return;
-        }
-
         const response = await adminAPI.getPhoto(filename);
         objectUrl = URL.createObjectURL(response.data);
         setSrc(objectUrl);

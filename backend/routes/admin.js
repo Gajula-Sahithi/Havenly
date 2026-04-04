@@ -4,13 +4,20 @@ const path = require('path');
 const { Room, User, Complaint, Transaction, Notice, RoomChange, db, USERS_COLLECTION, ROOMS_COLLECTION, COMPLAINTS_COLLECTION, TRANSACTIONS_COLLECTION, NOTICES_COLLECTION } = require('../models');
 const { authenticate, authorize } = require('../middleware/auth');
 const admin = require('firebase-admin');
-const { uploadToFirebase } = require('../utils/firebaseStorage');
 
 const router = express.Router();
 
 // Configure multer for file uploads
-// Configure multer for file uploads (use memory storage for Vercel)
-const storage = multer.memoryStorage();
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    // Create unique filename with timestamp and original name
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
 
 const upload = multer({ 
   storage: storage,
@@ -37,8 +44,8 @@ router.get('/rooms', async (req, res) => {
     const rooms = await Room.findAll();
     const roomsWithDetails = await Promise.all(
       rooms.map(async (room) => {
-        const roomWithResidents = await Room.findWithResidents(room.id, room);
-        const roomWithPaymentStatus = await Room.findWithPaymentStatus(room.id, room);
+        const roomWithResidents = await Room.findWithResidents(room.id);
+        const roomWithPaymentStatus = await Room.findWithPaymentStatus(room.id);
         
         // Merge both results
         return {
@@ -68,8 +75,9 @@ router.post('/rooms', upload.single('photo'), async (req, res) => {
     // Handle photo URL
     let photo_url = null;
     if (req.file) {
-      photo_url = await uploadToFirebase(req.file.buffer, req.file.originalname, 'rooms');
-      console.log('Room photo uploaded to cloud:', photo_url);
+      // If file was uploaded, use the filename
+      photo_url = req.file.filename;
+      console.log('Room photo uploaded:', req.file.filename);
     } else if (req.body.photo_url) {
       // If photo_url was provided in form data (for external URLs)
       photo_url = req.body.photo_url;
@@ -99,8 +107,8 @@ router.put('/rooms/:id', upload.single('photo'), async (req, res) => {
     
     // Handle photo upload
     if (req.file) {
-      updateData.photo_url = await uploadToFirebase(req.file.buffer, req.file.originalname, 'rooms');
-      console.log('Room photo updated in cloud:', updateData.photo_url);
+      updateData.photo_url = req.file.filename;
+      console.log('Room photo updated:', req.file.filename);
     }
     
     const room = await Room.update(req.params.id, updateData);

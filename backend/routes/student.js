@@ -300,34 +300,10 @@ router.post('/notices/:id/acknowledge', async (req, res) => {
 router.get('/photo/:filename', authenticate, (req, res) => {
   try {
     const { filename } = req.params;
-    
-    // Safety: If filename is actually a full URL (Firebase), just redirect or return error
-    if (filename.startsWith('http')) {
-      return res.redirect(filename);
-    }
-
-    const fs = require('fs');
     const filePath = path.join(__dirname, '../uploads', filename);
-    
-    // Check if file exists asynchronously
-    fs.access(filePath, fs.constants.F_OK, (err) => {
-      if (err) {
-        console.error(`Photo not found on disk: ${filename}`);
-        return res.status(404).json({ message: 'Photo not found on server' });
-      }
-      
-      res.sendFile(filePath, (err) => {
-        if (err) {
-          console.error(`Error sending file ${filename}:`, err.message);
-          if (!res.headersSent) {
-            res.status(500).json({ message: 'Error serving photo' });
-          }
-        }
-      });
-    });
+    res.sendFile(filePath);
   } catch (error) {
-    console.error('Photo route exception:', error);
-    res.status(500).json({ message: 'Internal server error in photo route' });
+    res.status(404).json({ message: 'Photo not found' });
   }
 });
 

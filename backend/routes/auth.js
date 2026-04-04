@@ -4,10 +4,17 @@ const multer = require('multer');
 const path = require('path');
 const { User } = require('../models');
 const { authenticate } = require('../middleware/auth');
-const { uploadToFirebase } = require('../utils/firebaseStorage');
 
 // Configure multer for file uploads
-const storage = multer.memoryStorage();
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'idproof-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
 
 const upload = multer({ 
   storage: storage,
@@ -28,8 +35,8 @@ router.post('/register', upload.single('idProof'), async (req, res) => {
 
     let idProofUrl = '';
     if (req.file) {
-      idProofUrl = await uploadToFirebase(req.file.buffer, req.file.originalname, 'id-proofs');
-      console.log('ID proof uploaded to cloud:', idProofUrl);
+      idProofUrl = req.file.filename;
+      console.log('ID proof uploaded:', idProofUrl);
     }
 
     // Create new user
