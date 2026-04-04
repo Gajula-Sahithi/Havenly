@@ -4,6 +4,8 @@ const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
 
+let firebaseInitialized = false;
+
 // Initialize Firebase
 try {
   // Use environment variables directly
@@ -49,6 +51,7 @@ try {
   });
   
   console.log('Firebase initialized successfully');
+  firebaseInitialized = true;
 } catch (error) {
   console.error('Firebase initialization error:', error.message);
   console.error('Environment variables check:');
@@ -56,13 +59,19 @@ try {
   console.error('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'NOT SET');
   console.error('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'SET' : 'NOT SET');
   console.error('FIREBASE_DATABASE_URL:', process.env.FIREBASE_DATABASE_URL ? 'SET' : 'NOT SET');
-  process.exit(1);
 }
 
-const db = admin.firestore();
+const db = firebaseInitialized ? admin.firestore() : null;
 
 // Create Express app
 const app = express();
+
+app.use((req, res, next) => {
+  if (!firebaseInitialized) {
+    return res.status(500).json({ message: "CRITICAL ERROR: Firebase failed to initialize! Your Vercel Environment Variables are either completely missing, pasted incorrectly, or the Private Key is damaged. Please go to Vercel Settings -> Environment Variables and fix them!" });
+  }
+  next();
+});
 
 // Middleware
 const allowedOrigins = [
