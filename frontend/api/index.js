@@ -1,26 +1,14 @@
-// Firebase Admin SDK initialization
-const admin = require('firebase-admin');
-require('dotenv').config();
-
-// Initialize Firebase
+// Vercel serverless function entrypoint
 try {
-  const serviceAccount = {
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n').replace(/"/g, ''),
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL
+  const app = require('../../backend/server');
+  module.exports = app;
+} catch (err) {
+  console.error("VERCEL COLD START CRASH:", err);
+  module.exports = (req, res) => {
+    res.status(500).json({
+      error: "Vercel Serverless Function completely failed to initialize the backend application.",
+      message: err.message,
+      stack: err.stack
+    });
   };
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: process.env.FIREBASE_DATABASE_URL
-  });
-} catch (error) {
-  console.error('Firebase initialization error:', error.message);
 }
-
-// Export Firebase and models
-module.exports = {
-  admin,
-  db: admin.firestore(),
-  ...require('./models')
-};
