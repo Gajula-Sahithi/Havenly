@@ -1,9 +1,79 @@
 import { useState, useEffect } from 'react';
 import { Loader, Home, MapPin, Users, DollarSign, X, CreditCard, Calendar } from 'lucide-react';
-import { studentAPI } from '../../utils/api';
+import { studentAPI, UPLOADS_URL } from '../../utils/api';
 
 const PLACEHOLDER_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlJvb208L3RleHQ+PC9zdmc+';
 import { useNavigate } from 'react-router-dom';
+
+const RoomImage = ({ photo_url, room_number }) => {
+  const [src, setSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let objectUrl = null;
+
+    const fetchImage = async () => {
+      try {
+        // If it's already an absolute URL or data URI
+        if (photo_url.startsWith('http') || photo_url.startsWith('data:')) {
+          // If it's a known failing placeholder, use our local one
+          if (photo_url.includes('via.placeholder.com')) {
+            setSrc(PLACEHOLDER_SVG);
+            setLoading(false);
+            return;
+          }
+          setSrc(photo_url);
+          setLoading(false);
+          return;
+        }
+
+        // Extract filename and fetch via authenticated API
+        const filename = photo_url.replace('/uploads/', '').replace('uploads/', '');
+        const response = await studentAPI.getPhoto(filename);
+        
+        objectUrl = URL.createObjectURL(response.data);
+        setSrc(objectUrl);
+      } catch (error) {
+        console.error(`Failed to load image for room ${room_number}:`, error);
+        setSrc(PLACEHOLDER_SVG);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchImage();
+
+    // Cleanup object URL to prevent memory leaks
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [photo_url, room_number]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-full bg-slate-200 animate-pulse flex items-center justify-center">
+        <Loader className="animate-spin text-slate-400" size={24} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src || PLACEHOLDER_SVG}
+      alt={`Room ${room_number}`}
+      className="w-full h-full object-cover transition-opacity duration-300"
+      onLoad={(e) => { e.currentTarget.style.opacity = '1'; }}
+      style={{ opacity: '0' }}
+      onError={(e) => {
+        if (src !== PLACEHOLDER_SVG) {
+          setSrc(PLACEHOLDER_SVG);
+        }
+      }}
+    />
+  );
+};
 
 const StudentRooms = () => {
   const [rooms, setRooms] = useState([]);
@@ -135,42 +205,7 @@ const StudentRooms = () => {
             >
               {/* Room Image */}
               <div className="mb-4 h-32 sm:h-40 bg-slate-200 rounded-lg overflow-hidden">
-                <img
-                  src={(function() {
-                    const url = room.photo_url;
-                    console.log(`Room ${room.room_number} photo_url:`, url);
-                    if (!url) return PLACEHOLDER_SVG;
-                    
-                    // Handle via.placeholder.com URLs by showing proper placeholder instead
-                    if (url.includes('via.placeholder.com') || url.includes('picsum.photos')) {
-                      return PLACEHOLDER_SVG;
-                    }
-                    
-                    // Accept full URLs, relative server paths, and base64 data URIs
-                    if (/^(https?:\/\/|data:image\/)/.test(url)) return url;
-                    
-                    // If it's a plain filename, use the backend uploads URL
-                    if (/^[^/]+\.(jpg|jpeg|png|gif|webp)$/i.test(url)) {
-                      return `/uploads/${url}`;
-                    }
-                    
-                    // If it starts with /uploads/, use the backend URL
-                    if (url.startsWith('/uploads/')) {
-                      return url;
-                    }
-                    
-                    console.warn(`Invalid photo_url format for room ${room.room_number}:`, url);
-                    return PLACEHOLDER_SVG;
-                  })()}
-                  alt={`Room ${room.room_number}`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => { 
-                    console.error(`Failed to load image for room ${room.room_number}:`, e.currentTarget.src);
-                    e.currentTarget.src = PLACEHOLDER_SVG;
-                  }}
-                  onLoad={(e) => { e.currentTarget.style.opacity = '1'; }}
-                  style={{ opacity: '0', transition: 'opacity 0.3s' }}
-                />
+                <RoomImage photo_url={room.photo_url} room_number={room.room_number} />
               </div>
 
               {/* Room Info */}

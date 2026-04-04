@@ -7,6 +7,8 @@ import AdminRooms from './pages/admin/AdminRooms';
 import AdminComplaints from './pages/admin/AdminComplaints';
 import AdminTransactions from './pages/admin/AdminTransactions';
 import AdminNotices from './pages/admin/AdminNotices';
+import AdminRoomChanges from './pages/admin/AdminRoomChanges';
+import AdminStudents from './pages/admin/AdminStudents';
 import SuperAdmin from './pages/admin/SuperAdmin';
 import StudentDashboard from './pages/student/StudentDashboard';
 import StudentRooms from './pages/student/StudentRooms';
@@ -34,7 +36,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/login" replace />;
+    // If logged in but wrong role, redirect to their home page to prevent infinite loops
+    if (user.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user.role === 'student') return <Navigate to="/student" replace />;
+    // Fallback if role is something else
+    return <div className="p-8 text-center"><h2 className="text-xl text-red-600 font-bold">Unauthorized Access</h2></div>;
   }
 
   return <Layout>{children}</Layout>;
@@ -84,6 +90,14 @@ function App() {
         <Route
           path="/admin/notices"
           element={<ProtectedRoute allowedRoles={['admin']}><AdminRouteWrapper><AdminNotices /></AdminRouteWrapper></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/room-changes"
+          element={<ProtectedRoute allowedRoles={['admin']}><AdminRouteWrapper><AdminRoomChanges /></AdminRouteWrapper></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/students"
+          element={<ProtectedRoute allowedRoles={['admin']}><AdminRouteWrapper><AdminStudents /></AdminRouteWrapper></ProtectedRoute>}
         />
         <Route
           path="/admin/super-admin"

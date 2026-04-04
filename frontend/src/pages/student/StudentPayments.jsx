@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader, CreditCard, Check } from 'lucide-react';
 import { studentAPI } from '../../utils/api';
+import { formatDate } from '../../utils/dateFormatter';
 
 const StudentPayments = () => {
   const [transactions, setTransactions] = useState([]);
@@ -81,24 +82,24 @@ const StudentPayments = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="card">
           <p className="text-sm text-slate-600 mb-2">Total Payments</p>
-          <p className="text-3xl font-bold text-slate-900">₹{transactions.reduce((sum, t) => sum + t.amount, 0)}</p>
+          <p className="text-3xl font-bold text-slate-900">₹{transactions.reduce((sum, t) => sum + Number(t.amount || 0), 0)}</p>
         </div>
         <div className="card border-2 border-red-200 bg-red-50">
           <p className="text-sm text-slate-600 mb-2">Pending Dues</p>
           <p className="text-3xl font-bold text-red-600">
-            ₹{pendingTransactions.reduce((sum, t) => sum + t.amount, 0)}
+            ₹{pendingTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0)}
           </p>
         </div>
         <div className="card border-2 border-orange-200 bg-orange-50">
           <p className="text-sm text-slate-600 mb-2">Overdue</p>
           <p className="text-3xl font-bold text-orange-600">
-            ₹{overdueTransactions.reduce((sum, t) => sum + t.amount, 0)}
+            ₹{overdueTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0)}
           </p>
         </div>
         <div className="card border-2 border-green-200 bg-green-50">
           <p className="text-sm text-slate-600 mb-2">Amount Paid</p>
           <p className="text-3xl font-bold text-green-600">
-            ₹{paidTransactions.reduce((sum, t) => sum + t.amount, 0)}
+            ₹{paidTransactions.reduce((sum, t) => sum + Number(t.amount || 0), 0)}
           </p>
         </div>
       </div>
@@ -128,7 +129,7 @@ const StudentPayments = () => {
                 <div className="text-right mr-4">
                   <p className="font-bold text-red-600">₹{transaction.amount}</p>
                   <p className="text-xs text-slate-600">
-                    {(transaction.date && (transaction.date.toDate ? transaction.date.toDate() : new Date(transaction.date))).toLocaleDateString()}
+                    {transaction.date ? formatDate(transaction.date) : ''}
                   </p>
                 </div>
                 <button
@@ -185,7 +186,7 @@ const StudentPayments = () => {
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">₹{transaction.amount}</td>
                     <td className="py-3 px-4 text-slate-600">
-                      {transaction.paidDate ? new Date(transaction.paidDate).toLocaleDateString() : '-'}
+                      {transaction.paidDate ? formatDate(transaction.paidDate) : '-'}
                     </td>
                     <td className="py-3 px-4">
                       <span className="badge badge-paid">

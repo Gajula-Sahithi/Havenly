@@ -1,6 +1,66 @@
 import { useState, useEffect } from 'react';
 import { Plus, Loader, Trash2, Edit2, Upload } from 'lucide-react';
-import { adminAPI } from '../../utils/api';
+import { adminAPI, UPLOADS_URL } from '../../utils/api';
+
+const PLACEHOLDER_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTJlOGYwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyMCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlJvb208L3RleHQ+PC9zdmc+';
+
+const RoomImage = ({ photo_url, room_number, className }) => {
+  const [src, setSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let objectUrl = null;
+
+    const fetchImage = async () => {
+      try {
+        if (photo_url.startsWith('http') || photo_url.startsWith('data:')) {
+          if (photo_url.includes('via.placeholder.com')) {
+            setSrc(PLACEHOLDER_SVG);
+            setLoading(false);
+            return;
+          }
+          setSrc(photo_url);
+          setLoading(false);
+          return;
+        }
+
+        const filename = photo_url.replace('/uploads/', '').replace('uploads/', '');
+        const response = await adminAPI.getPhoto(filename);
+        
+        objectUrl = URL.createObjectURL(response.data);
+        setSrc(objectUrl);
+      } catch (error) {
+        console.error(`Failed to load image for room ${room_number}:`, error);
+        setSrc(PLACEHOLDER_SVG);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchImage();
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [photo_url, room_number]);
+
+  if (loading) {
+    return (
+      <div className={`${className} bg-slate-200 animate-pulse flex items-center justify-center`}>
+        <Loader className="animate-spin text-slate-400" size={16} />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src || PLACEHOLDER_SVG}
+      alt={`Room ${room_number}`}
+      className={className}
+      onError={() => src !== PLACEHOLDER_SVG && setSrc(PLACEHOLDER_SVG)}
+    />
+  );
+};
 
 const AdminRooms = () => {
   const [rooms, setRooms] = useState([]);
@@ -16,6 +76,8 @@ const AdminRooms = () => {
   });
   const [photoFile, setPhotoFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingRoomId, setEditingRoomId] = useState(null);
 
   useEffect(() => {
     fetchRooms();
@@ -43,7 +105,6 @@ const AdminRooms = () => {
     try {
       setSubmitting(true);
       
-      // Create FormData for file upload
       const formDataToSend = new FormData();
       formDataToSend.append('room_number', formData.room_number);
       formDataToSend.append('wing', formData.wing);
@@ -51,31 +112,55 @@ const AdminRooms = () => {
       formDataToSend.append('price', formData.price);
       formDataToSend.append('capacity', formData.capacity);
       
-      // Add photo file if selected
       if (photoFile) {
         formDataToSend.append('photo', photoFile);
-        console.log('Uploading photo:', photoFile.name);
       }
       
-      await adminAPI.createRoom(formDataToSend);
+      if (isEditing && editingRoomId) {
+        await adminAPI.updateRoom(editingRoomId, formDataToSend);
+      } else {
+        await adminAPI.createRoom(formDataToSend);
+      }
       
-      setFormData({
-        room_number: '',
-        wing: '',
-        type: 'Single AC',
-        price: '',
-        capacity: '',
-        photo_url: ''
-      });
-      setPhotoFile(null);
-      setShowForm(false);
+      resetForm();
       await fetchRooms();
     } catch (error) {
-      alert('Error creating room: ' + error.message);
-      console.error('Room creation error:', error);
+      alert(`Error ${isEditing ? 'updating' : 'creating'} room: ` + error.message);
+      console.error('Room submission error:', error);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEdit = (room) => {
+    setFormData({
+      room_number: room.room_number,
+      wing: room.wing,
+      type: room.type,
+      price: room.price,
+      capacity: room.capacity,
+      photo_url: room.photo_url || ''
+    });
+    setEditingRoomId(room.id);
+    setIsEditing(true);
+    setShowForm(true);
+    setPhotoFile(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetForm = () => {
+    setFormData({
+      room_number: '',
+      wing: '',
+      type: 'Single AC',
+      price: '',
+      capacity: '',
+      photo_url: ''
+    });
+    setPhotoFile(null);
+    setIsEditing(false);
+    setEditingRoomId(null);
+    setShowForm(false);
   };
 
   const handleDelete = async (id) => {
@@ -105,18 +190,38 @@ const AdminRooms = () => {
           <p className="text-slate-600 mt-2">Manage hostel rooms and occupancy</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              resetForm();
+            } else {
+              // Clear form data but don't call resetForm yet because it hides the form
+              setFormData({
+                room_number: '',
+                wing: '',
+                type: 'Single AC',
+                price: '',
+                capacity: '',
+                photo_url: ''
+              });
+              setPhotoFile(null);
+              setIsEditing(false);
+              setEditingRoomId(null);
+              setShowForm(true);
+            }
+          }}
           className="btn-primary flex items-center space-x-2"
         >
-          <Plus size={20} />
-          <span>Add Room</span>
+          {showForm ? <Plus className="rotate-45" size={20} /> : <Plus size={20} />}
+          <span>{showForm ? 'Cancel' : 'Add Room'}</span>
         </button>
       </div>
 
       {/* Add Room Form */}
       {showForm && (
         <div className="card border-2 border-indigo-200 bg-indigo-50">
-          <h2 className="text-2xl font-bold text-indigo-900 mb-6">Add New Room</h2>
+          <h2 className="text-2xl font-bold text-indigo-900 mb-6">
+            {isEditing ? `Edit Room ${formData.room_number}` : 'Add New Room'}
+          </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -203,11 +308,11 @@ const AdminRooms = () => {
                 disabled={submitting}
                 className="btn-primary disabled:opacity-50"
               >
-                {submitting ? 'Creating...' : 'Create Room'}
+                {submitting ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update Room' : 'Create Room')}
               </button>
               <button
                 type="button"
-                onClick={() => setShowForm(false)}
+                onClick={resetForm}
                 className="btn-secondary"
               >
                 Cancel
@@ -244,17 +349,10 @@ const AdminRooms = () => {
                   <td className="py-3 px-4 font-medium text-slate-900">{room.room_number}</td>
                   <td className="py-3 px-4">
                     {room.photo_url ? (
-                      <img 
-                        src={`/uploads/${room.photo_url}`}
-                        alt={`Room ${room.room_number}`}
+                      <RoomImage 
+                        photo_url={room.photo_url} 
+                        room_number={room.room_number} 
                         className="w-12 h-12 object-cover rounded-lg border border-slate-200"
-                        onError={(e) => {
-                          console.error('Failed to load room photo:', room.photo_url);
-                          e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0yNCAzMkMxOS41ODUyIDMyIDE2IDI4LjQxNDggMTYgMjRDMTYgMTkuNTg1MiAxOS41ODUyIDE2IDI0IDE2QzI4LjQxNDggMTYgMzIgMTkuNTg1MiAzMiAyNEMzMiAyOC40MTQ4IDI4LjQxNDggMzIgMjQgMzJaIiBmaWxsPSIjOTQ5OEFFIi8+Cjwvc3ZnPgo=';
-                        }}
-                        onLoad={() => {
-                          console.log('Room photo loaded successfully:', room.photo_url);
-                        }}
                       />
                     ) : (
                       <div className="w-12 h-12 bg-slate-200 rounded-lg border border-slate-300 flex items-center justify-center">
@@ -318,7 +416,11 @@ const AdminRooms = () => {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center space-x-2">
-                      <button className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-600">
+                      <button 
+                        onClick={() => handleEdit(room)}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition text-slate-600"
+                        title="Edit Room"
+                      >
                         <Edit2 size={16} />
                       </button>
                       <button

@@ -75,12 +75,14 @@ const Sidebar = () => {
     { label: 'Dashboard', icon: Home, path: '/admin' },
 
     { label: 'Rooms', icon: Users, path: '/admin/rooms' },
-
+    { label: 'Students', icon: Users, path: '/admin/students' },
     { label: 'Complaints', icon: AlertCircle, path: '/admin/complaints' },
 
     { label: 'Transactions', icon: DollarSign, path: '/admin/transactions' },
 
-    { label: 'Notices', icon: FileText, path: '/admin/notices' }
+    { label: 'Notices', icon: FileText, path: '/admin/notices' },
+
+    { label: 'Room Changes', icon: ArrowRightLeft, path: '/admin/room-changes' }
 
   ];
 

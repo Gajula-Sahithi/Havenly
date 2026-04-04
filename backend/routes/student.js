@@ -1,12 +1,13 @@
 const express = require('express');
-const { User, Room, Transaction, Complaint, Notice } = require('../models');
+const path = require('path');
+const { User, Room, Transaction, Complaint, Notice, RoomChange } = require('../models');
 const { authenticate, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Middleware
 router.use(authenticate);
-router.use(authorize(['student']));
+router.use(authorize(['student', 'admin']));
 
 // GET student's room details
 router.get('/room', async (req, res) => {
@@ -255,8 +256,8 @@ router.get('/rooms/:roomId/preview', async (req, res) => {
 // GET room change requests
 router.get('/room-change-requests', async (req, res) => {
   try {
-    // For now, return empty array - this would be implemented with a proper database
-    res.json([]);
+    const requests = await RoomChange.findByUserId(req.user.id);
+    res.json(requests);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -267,20 +268,18 @@ router.post('/room-change-requests', async (req, res) => {
   try {
     const { current_room_id, requested_room_id, reason } = req.body;
     
-    // Basic validation
     if (!current_room_id || !requested_room_id || !reason) {
       return res.status(400).json({ message: 'All fields are required' });
     }
     
-    // For now, just return success - this would be implemented with a proper database
-    res.status(201).json({
-      id: Date.now(),
+    const request = await RoomChange.create({
+      user_id: req.user.id,
       current_room_id,
       requested_room_id,
-      reason,
-      status: 'Pending',
-      created_at: new Date().toISOString()
+      reason
     });
+    
+    res.status(201).json(request);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -294,6 +293,17 @@ router.post('/notices/:id/acknowledge', async (req, res) => {
     res.json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// GET room photo (authenticated)
+router.get('/photo/:filename', authenticate, (req, res) => {
+  try {
+    const { filename } = req.params;
+    const filePath = path.join(__dirname, '../uploads', filename);
+    res.sendFile(filePath);
+  } catch (error) {
+    res.status(404).json({ message: 'Photo not found' });
   }
 });
 

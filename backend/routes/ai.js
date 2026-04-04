@@ -29,7 +29,7 @@ router.post('/facility-insights', authenticate, async (req, res) => {
 
 Provide 3 concise bullet-point insights for a hostel admin dashboard summary. Be professional and actionable.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const insights = result.response.text();
 
@@ -56,7 +56,7 @@ Idea: "${idea}"
 
 Keep it formal, clear, and actionable.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const draftNotice = result.response.text();
 
@@ -83,7 +83,7 @@ Original: "${shortDescription}"
 
 Rewrite it as a complete, professional problem description that provides context and details.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const result = await model.generateContent(prompt);
     const enhancedDescription = result.response.text();
 

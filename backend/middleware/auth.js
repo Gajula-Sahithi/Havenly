@@ -17,8 +17,9 @@ const authenticate = (req, res, next) => {
 };
 
 const authorize = (roles) => (req, res, next) => {
+  console.log(`[AUTH] Path: ${req.originalUrl}, User: ${req.user.email}, Role: '${req.user.role}', Required: [${roles}]`);
   if (!roles.includes(req.user.role)) {
-    return res.status(403).json({ message: 'Access denied' });
+    return res.status(403).json({ message: `Access denied for role: ${req.user.role}` });
   }
   next();
 };

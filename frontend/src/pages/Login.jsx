@@ -1,30 +1,44 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, Lock, Eye, EyeOff, AlertTriangle, Crown, Shield, LogIn } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertTriangle, Crown, Shield, LogIn, X, HelpCircle, Key } from 'lucide-react';
+import { authAPI } from '../utils/api';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null); // 'admin' or 'student'
+  const [idProofFile, setIdProofFile] = useState(null);
   const [signUpData, setSignUpData] = useState({
     name: '',
     email: '',
     password: '',
     phone: '',
     role: 'student',
-    idProofType: 'Aadhar'
+    idProofType: 'Aadhar',
+    securityQuestion: 'What is your favorite color?',
+    securityAnswer: ''
   });
+
+  // Forgot Password States
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [resetQuestion, setResetQuestion] = useState('');
+  const [resetAnswer, setResetAnswer] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [forgotStep, setForgotStep] = useState(1); // 1: Email, 2: Answer & New Pass
 
   // Clear form when role changes
   useEffect(() => {
     setEmail('');
     setPassword('');
     setError('');
+    setSuccess('');
   }, [selectedRole]);
 
   const navigate = useNavigate();
@@ -33,6 +47,7 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -50,16 +65,30 @@ const Login = () => {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
+    if (!signUpData.securityAnswer) {
+      setError('Please provide a security answer');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const result = await register({
-        name: signUpData.name,
-        email: signUpData.email,
-        password: signUpData.password,
-        phone: signUpData.phone,
-        role: signUpData.role
-      });
+      const formData = new FormData();
+      formData.append('name', signUpData.name);
+      formData.append('email', signUpData.email);
+      formData.append('password', signUpData.password);
+      formData.append('phone', signUpData.phone);
+      formData.append('role', signUpData.role);
+      formData.append('idProofType', signUpData.idProofType);
+      formData.append('securityQuestion', signUpData.securityQuestion);
+      formData.append('securityAnswer', signUpData.securityAnswer);
+      if (idProofFile) {
+        formData.append('idProof', idProofFile);
+      }
+
+      const result = await register(formData);
       if (result) {
         navigate(result.user.role === 'admin' ? '/admin' : '/student');
       }
@@ -70,11 +99,49 @@ const Login = () => {
     }
   };
 
+  const handleForgotStep1 = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const response = await authAPI.forgotPasswordQuestion(forgotIdentifier);
+      setResetQuestion(response.data.securityQuestion);
+      setForgotStep(2);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Account not found');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotStep2 = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await authAPI.forgotPasswordReset({
+        identifier: forgotIdentifier,
+        answer: resetAnswer,
+        newPassword: newPassword
+      });
+      setSuccess('Password reset successfully. You can now login.');
+      setShowForgotModal(false);
+      setForgotStep(1);
+      setForgotIdentifier('');
+      setResetAnswer('');
+      setNewPassword('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Incorrect answer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden relative">
           {/* Header */}
           <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 px-6 py-8 text-white text-center">
             <div className="text-5xl font-bold mb-2">🏨</div>
@@ -141,8 +208,15 @@ const Login = () => {
             </div>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2">
+                <AlertTriangle size={16} />
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
+                {success}
               </div>
             )}
 
@@ -163,7 +237,16 @@ const Login = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                  <div className="flex justify-between mb-2">
+                    <label className="block text-sm font-medium text-slate-700">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotModal(true)}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
@@ -203,7 +286,7 @@ const Login = () => {
               </form>
             ) : (
               // Sign Up Form
-              <form onSubmit={handleSignUp} className="space-y-4 max-h-96 overflow-y-auto" autoComplete="off">
+              <form onSubmit={handleSignUp} className="space-y-4 max-h-96 overflow-y-auto pr-2 custom-scrollbar" autoComplete="off">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Full Name</label>
                   <input
@@ -265,10 +348,33 @@ const Login = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">User Type</label>
-                  <div className="px-4 py-2 bg-slate-100 rounded-lg font-medium text-slate-900">
-                    {selectedRole === 'admin' ? '👨‍💼 Administrator' : '👨‍🎓 Student'}
+                <div className="grid grid-cols-1 gap-4 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <h4 className="text-xs font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1">
+                    <Shield size={14} /> Recovery Security
+                  </h4>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Security Question</label>
+                    <select
+                      value={signUpData.securityQuestion}
+                      onChange={(e) => setSignUpData({ ...signUpData, securityQuestion: e.target.value })}
+                      className="input-field py-1.5 text-sm"
+                    >
+                      <option>What is your favorite color?</option>
+                      <option>What was your first pet's name?</option>
+                      <option>What is your mother's maiden name?</option>
+                      <option>What city were you born in?</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Your Answer</label>
+                    <input
+                      type="text"
+                      value={signUpData.securityAnswer}
+                      onChange={(e) => setSignUpData({ ...signUpData, securityAnswer: e.target.value })}
+                      placeholder="Answer for password recovery"
+                      className="input-field py-1.5 text-sm"
+                      required
+                    />
                   </div>
                 </div>
 
@@ -291,9 +397,11 @@ const Login = () => {
                   <input
                     type="file"
                     accept="image/*,.pdf"
+                    onChange={(e) => setIdProofFile(e.target.files[0])}
                     className="input-field"
+                    required
                   />
-                  <p className="text-xs text-slate-500 mt-1">PDF or Image format (Max 5MB)</p>
+                  {idProofFile && <p className="text-xs text-green-600 mt-1">✓ {idProofFile.name}</p>}
                 </div>
 
                 <button
@@ -307,6 +415,104 @@ const Login = () => {
               </form>
             )}
           </div>
+          )}
+
+          {/* Forgot Password Modal */}
+          {showForgotModal && (
+            <div className="absolute inset-0 bg-white z-50 p-8 flex flex-col">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                  <Key className="text-indigo-600" /> Reset Password
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    setForgotStep(1);
+                    setError('');
+                  }}
+                  className="p-2 hover:bg-slate-100 rounded-full transition"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  {error}
+                </div>
+              )}
+
+              {forgotStep === 1 ? (
+                <form onSubmit={handleForgotStep1} className="space-y-6">
+                  <p className="text-slate-600 text-sm">Enter your registered email or phone number to find your security question.</p>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Email or Phone Number</label>
+                    <input
+                      type="text"
+                      value={forgotIdentifier}
+                      onChange={(e) => setForgotIdentifier(e.target.value)}
+                      placeholder="Email or Phone Number"
+                      className="input-field"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn-primary py-3"
+                  >
+                    {loading ? 'Finding Account...' : 'Continue'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleForgotStep2} className="space-y-6">
+                  <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                    <label className="block text-xs font-bold text-indigo-700 uppercase mb-2">Security Question</label>
+                    <p className="text-slate-900 font-medium mb-4 flex items-center gap-2 text-sm">
+                      <HelpCircle size={18} className="text-indigo-600" /> {resetQuestion}
+                    </p>
+                    <label className="block text-sm font-medium text-indigo-800 mb-2">Your Answer</label>
+                    <input
+                      type="text"
+                      value={resetAnswer}
+                      onChange={(e) => setResetAnswer(e.target.value)}
+                      placeholder="Type your answer exactly"
+                      className="w-full px-4 py-2 bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">New Password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      className="input-field"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn-primary py-3"
+                  >
+                    {loading ? 'Resetting...' : 'Update Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForgotStep(1)}
+                    className="w-full text-sm text-slate-500 hover:text-slate-700 font-medium"
+                  >
+                    Back to start
+                  </button>
+                </form>
+              )}
+            </div>
           )}
         </div>
 

@@ -10,11 +10,12 @@ const COMPLAINTS_COLLECTION = 'complaints';
 const TRANSACTIONS_COLLECTION = 'transactions';
 const NOTICES_COLLECTION = 'notices';
 const ACKNOWLEDGMENTS_COLLECTION = 'acknowledgments';
+const ROOM_CHANGES_COLLECTION = 'room_changes';
 
 // ===================== USER OPERATIONS =====================
 const User = {
   async create(userData) {
-    const { email, password, name, role, phone } = userData;
+    const { email, password, name, role, phone, idProofType, idProofUrl, securityQuestion, securityAnswer } = userData;
     
     // Check if user exists
     const existingUser = await db.collection(USERS_COLLECTION).where('email', '==', email).get();
@@ -29,11 +30,15 @@ const User = {
     const userRef = await db.collection(USERS_COLLECTION).add({
       name,
       email,
-      password: hashedPassword,
-      role: role || 'student',
       phone: phone || '',
+      role: role || 'student', // Add missing role field
+      password: hashedPassword,
       room_id: null,
       hotelName: '',
+      idProofType: idProofType || '',
+      idProofUrl: idProofUrl || '',
+      securityQuestion: securityQuestion || '',
+      securityAnswer: securityAnswer || '', // Should ideally be hashed
       createdAt: new Date()
     });
 
@@ -46,6 +51,24 @@ const User = {
     if (snapshot.empty) return null;
     const doc = snapshot.docs[0];
     return { id: doc.id, ...doc.data() };
+  },
+
+  async findByPhone(phone) {
+    if (!phone) return null;
+    const snapshot = await db.collection(USERS_COLLECTION).where('phone', '==', phone).limit(1).get();
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    return { id: doc.id, ...doc.data() };
+  },
+
+  async findByIdentifier(identifier) {
+    if (!identifier) return null;
+    // Check if it's an email or phone number
+    let user = await this.findByEmail(identifier);
+    if (!user) {
+      user = await this.findByPhone(identifier);
+    }
+    return user;
   },
 
   async findById(id) {
@@ -77,6 +100,21 @@ const User = {
     const clean = Object.fromEntries(Object.entries(updateData).filter(([, v]) => v !== undefined));
     await db.collection(USERS_COLLECTION).doc(id).update(clean);
     return this.findById(id);
+  },
+
+  async resetPassword(id, newPassword) {
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await db.collection(USERS_COLLECTION).doc(id).update({
+      password: hashedPassword
+    });
+    return true;
+  },
+
+  async verifySecurityAnswer(identifier, answer) {
+    const user = await this.findByIdentifier(identifier);
+    if (!user || !user.securityAnswer) return false;
+    return user.securityAnswer.toLowerCase() === answer.toLowerCase();
   }
 };
 
@@ -572,17 +610,152 @@ const Notice = {
   }
 };
 
+// ===================== ROOM CHANGE OPERATIONS =====================
+const RoomChange = {
+  async create(data) {
+    const { user_id, current_room_id, requested_room_id, reason } = data;
+    
+    // Check if there's already a pending request for this user
+    const pending = await db.collection(ROOM_CHANGES_COLLECTION)
+      .where('user_id', '==', user_id)
+      .where('status', '==', 'Pending')
+      .get();
+      
+    if (!pending.empty) {
+      throw new Error('You already have a pending room change request');
+    }
+
+    const requestRef = await db.collection(ROOM_CHANGES_COLLECTION).add({
+      user_id,
+      current_room_id,
+      requested_room_id,
+      reason,
+      status: 'Pending',
+      created_at: new Date()
+    });
+
+    return { id: requestRef.id, ...data, status: 'Pending' };
+  },
+
+  async findAll() {
+    const snapshot = await db.collection(ROOM_CHANGES_COLLECTION).get();
+    const requests = [];
+    
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const user = await User.findById(data.user_id);
+      const currentRoom = await Room.findById(data.current_room_id);
+      const requestedRoom = await Room.findById(data.requested_room_id);
+      
+      requests.push({
+        id: doc.id,
+        ...data,
+        user: user ? { id: user.id, name: user.name, email: user.email } : null,
+        current_room: currentRoom,
+        requested_room: requestedRoom
+      });
+    }
+    
+    // Sort by created_at desc in memory
+    return requests.sort((a, b) => {
+      const dateA = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at);
+      const dateB = b.created_at?.toDate ? b.created_at.toDate() : new Date(b.created_at);
+      return dateB - dateA;
+    });
+  },
+
+  async findByUserId(userId) {
+    const snapshot = await db.collection(ROOM_CHANGES_COLLECTION)
+      .where('user_id', '==', userId)
+      .get();
+      
+    const requests = [];
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const currentRoom = await Room.findById(data.current_room_id);
+      const requestedRoom = await Room.findById(data.requested_room_id);
+      
+      requests.push({
+        id: doc.id,
+        ...data,
+        current_room: currentRoom,
+        requested_room: requestedRoom
+      });
+    }
+    
+    // Sort by created_at desc in memory
+    return requests.sort((a, b) => {
+      const dateA = a.created_at?.toDate ? a.created_at.toDate() : new Date(a.created_at);
+      const dateB = b.created_at?.toDate ? b.created_at.toDate() : new Date(b.created_at);
+      return dateB - dateA;
+    });
+  },
+
+  async update(id, updateData) {
+    console.log(`[RoomChange.update] ID: ${id}, Update:`, updateData);
+    const { status, admin_comment } = updateData;
+    const requestDoc = await db.collection(ROOM_CHANGES_COLLECTION).doc(id).get();
+    
+    if (!requestDoc.exists) {
+      console.error(`[RoomChange.update] Request not found: ${id}`);
+      throw new Error('Request not found');
+    }
+    const requestData = requestDoc.data();
+    console.log(`[RoomChange.update] Current Data:`, requestData);
+
+    if (status === 'Approved' && requestData.status !== 'Approved') {
+      console.log(`[RoomChange.update] Processing Approval...`);
+      const { user_id, current_room_id, requested_room_id } = requestData;
+      
+      // Update User
+      console.log(`[RoomChange.update] Updating User ${user_id} to room ${requested_room_id}`);
+      await User.update(user_id, { room_id: requested_room_id });
+      
+      // Update Old Room Occupancy
+      if (current_room_id) {
+        const oldRoom = await Room.findById(current_room_id);
+        if (oldRoom) {
+          console.log(`[RoomChange.update] Decrementing occupancy for room ${current_room_id}`);
+          await Room.update(current_room_id, { 
+            occupancy: Math.max(0, (oldRoom.occupancy || 1) - 1) 
+          });
+        }
+      }
+      
+      // Update New Room Occupancy
+      const newRoom = await Room.findById(requested_room_id);
+      if (newRoom) {
+        console.log(`[RoomChange.update] Incrementing occupancy for room ${requested_room_id}`);
+        await Room.update(requested_room_id, { 
+          occupancy: (newRoom.occupancy || 0) + 1 
+        });
+      }
+    }
+
+    await db.collection(ROOM_CHANGES_COLLECTION).doc(id).update({
+      status,
+      admin_comment: admin_comment || '',
+      updated_at: new Date()
+    });
+    console.log(`[RoomChange.update] Firestore update complete`);
+
+    return { id, ...requestData, status };
+  }
+};
+
 module.exports = {
   User,
   Room,
   Complaint,
   Transaction,
   Notice,
+  RoomChange,
   db,
   USERS_COLLECTION,
   ROOMS_COLLECTION,
   COMPLAINTS_COLLECTION,
   TRANSACTIONS_COLLECTION,
   NOTICES_COLLECTION,
-  ACKNOWLEDGMENTS_COLLECTION
+  ACKNOWLEDGMENTS_COLLECTION,
+  ROOM_CHANGES_COLLECTION
 };

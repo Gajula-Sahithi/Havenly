@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { Room, User, Complaint, Transaction, Notice, db, USERS_COLLECTION, ROOMS_COLLECTION, COMPLAINTS_COLLECTION, TRANSACTIONS_COLLECTION, NOTICES_COLLECTION } = require('../models');
+const { Room, User, Complaint, Transaction, Notice, RoomChange, db, USERS_COLLECTION, ROOMS_COLLECTION, COMPLAINTS_COLLECTION, TRANSACTIONS_COLLECTION, NOTICES_COLLECTION } = require('../models');
 const { authenticate, authorize } = require('../middleware/auth');
 const admin = require('firebase-admin');
 
@@ -101,11 +101,20 @@ router.post('/rooms', upload.single('photo'), async (req, res) => {
 });
 
 // UPDATE room
-router.put('/rooms/:id', async (req, res) => {
+router.put('/rooms/:id', upload.single('photo'), async (req, res) => {
   try {
-    const room = await Room.update(req.params.id, req.body);
+    const updateData = { ...req.body };
+    
+    // Handle photo upload
+    if (req.file) {
+      updateData.photo_url = req.file.filename;
+      console.log('Room photo updated:', req.file.filename);
+    }
+    
+    const room = await Room.update(req.params.id, updateData);
     res.json(room);
   } catch (error) {
+    console.error('Error updating room:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -359,6 +368,58 @@ router.delete('/users/:id', async (req, res) => {
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Error deleting user:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Reset user password (Super Admin/Admin functionality)
+router.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { newPassword } = req.body;
+    
+    if (!newPassword) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+
+    await User.resetPassword(userId, newPassword);
+    
+    console.log(`Password for user ${userId} reset successfully by admin`);
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Error resetting user password:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all room change requests
+router.get('/room-changes', async (req, res) => {
+  try {
+    const requests = await RoomChange.findAll();
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// UPDATE room change request status
+router.put('/room-changes/:id', async (req, res) => {
+  try {
+    const { status, admin_comment } = req.body;
+    const request = await RoomChange.update(req.params.id, { status, admin_comment });
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DEBUG: GET all users raw
+router.get('/users-debug', async (req, res) => {
+  try {
+    const snapshot = await db.collection(USERS_COLLECTION).get();
+    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(users);
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });

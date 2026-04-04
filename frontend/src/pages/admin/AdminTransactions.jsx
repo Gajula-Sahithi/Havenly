@@ -109,13 +109,13 @@ const AdminTransactions = () => {
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-green-800 text-sm font-medium">Total Paid</p>
                   <p className="text-2xl font-bold text-green-900">
-                    ₹{transactions.filter(t => t.status === 'Paid').reduce((sum, t) => sum + t.amount, 0)}
+                    ₹{transactions.filter(t => t.status === 'Paid').reduce((sum, t) => sum + Number(t.amount || 0), 0)}
                   </p>
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <p className="text-red-800 text-sm font-medium">Pending Dues</p>
                   <p className="text-2xl font-bold text-red-900">
-                    ₹{transactions.filter(t => t.status === 'Pending').reduce((sum, t) => sum + t.amount, 0)}
+                    ₹{transactions.filter(t => t.status === 'Pending').reduce((sum, t) => sum + Number(t.amount || 0), 0)}
                   </p>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -232,13 +232,13 @@ const AdminTransactions = () => {
                           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                             <p className="text-green-800 text-xs font-medium">Total Paid</p>
                             <p className="text-xl font-bold text-green-900">
-                              ₹{roomData.transactions.filter(t => t.status === 'Paid').reduce((sum, t) => sum + t.amount, 0)}
+                              ₹{roomData.transactions.filter(t => t.status === 'Paid').reduce((sum, t) => sum + Number(t.amount || 0), 0)}
                             </p>
                           </div>
                           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                             <p className="text-red-800 text-xs font-medium">Pending Dues</p>
                             <p className="text-xl font-bold text-red-900">
-                              ₹{roomData.transactions.filter(t => t.status === 'Pending').reduce((sum, t) => sum + t.amount, 0)}
+                              ₹{roomData.transactions.filter(t => t.status === 'Pending').reduce((sum, t) => sum + Number(t.amount || 0), 0)}
                             </p>
                           </div>
                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
