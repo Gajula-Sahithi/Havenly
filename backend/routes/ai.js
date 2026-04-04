@@ -4,19 +4,23 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Initialize Gemini only if API key is valid
-let genAI = null;
-if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'test-gemini-key') {
-  genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-}
+const getGenAI = () => {
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'test-gemini-key') {
+    return new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  }
+  return null;
+};
 
 // AI Facility Insights - for Admin Dashboard
 router.post('/facility-insights', authenticate, async (req, res) => {
   try {
     const { occupancy, pendingTickets, revenue, capacity } = req.body;
 
+    const genAI = getGenAI();
+
     // If no valid API key, provide fallback response
     if (!genAI) {
+      console.log('Using fallback insights - no genAI client');
       const fallbackInsights = `• Occupancy at ${occupancy}% - Monitor capacity planning\n• ${pendingTickets} pending maintenance tickets - Schedule reviews\n• Revenue collected: ₹${revenue} - Track payment status`;
       return res.json({ insights: fallbackInsights });
     }
@@ -29,7 +33,7 @@ router.post('/facility-insights', authenticate, async (req, res) => {
 
 Provide 3 concise bullet-point insights for a hostel admin dashboard summary. Be professional and actionable.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const insights = result.response.text();
 
@@ -45,6 +49,8 @@ router.post('/draft-notice', authenticate, async (req, res) => {
   try {
     const { idea } = req.body;
 
+    const genAI = getGenAI();
+
     // If no valid API key, provide fallback response
     if (!genAI) {
       const fallbackNotice = `Notice to All Residents:\n\n${idea}\n\nFor any inquiries, please contact the administration office.`;
@@ -56,7 +62,7 @@ Idea: "${idea}"
 
 Keep it formal, clear, and actionable.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const draftNotice = result.response.text();
 
@@ -72,6 +78,8 @@ router.post('/enhance-complaint', authenticate, async (req, res) => {
   try {
     const { shortDescription } = req.body;
 
+    const genAI = getGenAI();
+
     // If no valid API key, provide fallback response
     if (!genAI) {
       const fallbackEnhanced = `Maintenance Issue: ${shortDescription}\n\nPlease provide additional details if available. Our maintenance team will review and address this issue promptly.`;
@@ -83,7 +91,7 @@ Original: "${shortDescription}"
 
 Rewrite it as a complete, professional problem description that provides context and details.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const enhancedDescription = result.response.text();
 
