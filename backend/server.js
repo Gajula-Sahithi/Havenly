@@ -1,8 +1,8 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const admin = require('firebase-admin');
 const cors = require('cors');
-const path = require('path');
 
 // Initialize Firebase
 try {
@@ -106,18 +106,22 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/ai', aiRoutes);
 
-// Serve static files from frontend build
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
+// Serve static files from frontend build (Local Only)
+if (!process.env.VERCEL) {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+}
 
 // Health check
 app.get('/health', (req, res) => {
   res.json({ message: 'DormFlow Backend is running' });
 });
 
-// Frontend routing - serve React app for all non-API routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
-});
+// Frontend routing - serve React app for all non-API routes (Local Only)
+if (!process.env.VERCEL) {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+  });
+}
 
 // Body parser error handler (catch invalid JSON payloads)
 app.use((err, req, res, next) => {
@@ -177,7 +181,15 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`DormFlow Backend running on http://localhost:${PORT}`);
-  console.log(`Frontend served at: http://localhost:${PORT}`);
-});
+
+// Export app for serverless platforms like Vercel, else bind to port
+if (process.env.VERCEL) {
+  console.log('Exporting app for Vercel serverless environment');
+  module.exports = app;
+} else {
+  const server = app.listen(PORT, () => {
+    console.log(`DormFlow Backend running on http://localhost:${PORT}`);
+    console.log(`Frontend served at: http://localhost:${PORT}`);
+  });
+  module.exports = server;
+}
