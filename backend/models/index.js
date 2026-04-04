@@ -167,75 +167,77 @@ const Room = {
     await db.collection(ROOMS_COLLECTION).doc(id).delete();
   },
 
-  async findWithResidents(id) {
-    const room = await this.findById(id);
-    if (!room) return null;
+  async findWithResidents(id, roomObj = null) {
+    try {
+      const room = roomObj || await this.findById(id);
+      if (!room) return null;
 
-    const users = await db.collection(USERS_COLLECTION).where('room_id', '==', id).get();
-    const residents = users.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone
-      };
-    });
+      const users = await db.collection(USERS_COLLECTION).where('room_id', '==', id).get();
+      const residents = users.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone
+        };
+      });
 
-    return { ...room, residents };
+      return { ...room, residents };
+    } catch (error) {
+      console.error(`Error in findWithResidents for room ${id}:`, error.message);
+      throw error;
+    }
   },
 
-  async findWithPaymentStatus(id) {
-    const room = await this.findById(id);
-    if (!room) return null;
+  async findWithPaymentStatus(id, roomObj = null) {
+    try {
+      const room = roomObj || await this.findById(id);
+      if (!room) return null;
 
-    // Get all transactions for this room
-    const transactions = await db.collection(TRANSACTIONS_COLLECTION).where('room_id', '==', id).get();
-    const transactionData = transactions.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Get all transactions for this room
+      const transactions = await db.collection(TRANSACTIONS_COLLECTION).where('room_id', '==', id).get();
+      const transactionData = transactions.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Calculate payment status
-    const paidTransactions = transactionData.filter(t => t.status === 'Paid');
-    const pendingTransactions = transactionData.filter(t => t.status === 'Pending');
-    const totalPaid = paidTransactions.reduce((sum, t) => sum + t.amount, 0);
-    const totalPending = pendingTransactions.reduce((sum, t) => sum + t.amount, 0);
+      // Calculate payment status - ENSURE NUMBERS
+      const paidTransactions = transactionData.filter(t => t.status === 'Paid');
+      const pendingTransactions = transactionData.filter(t => t.status === 'Pending');
+      const totalPaid = paidTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      const totalPending = pendingTransactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
-    // Determine room status based on payments and occupancy
-    let status = 'available';
-    
-    // If room has residents, check payment status
-    if (room.occupancy > 0) {
-      if (transactionData.length === 0) {
-        // Room has residents but no transactions - payment due
-        status = 'payment_due';
-      } else if (pendingTransactions.length > 0) {
-        // Has pending payments
-        status = 'payment_due';
+      // Determine room status based on payments and occupancy
+      let status = 'available';
+      
+      // If room has residents, check payment status
+      if (room.occupancy > 0) {
+        if (transactionData.length === 0) {
+          // Room has residents but no transactions - payment due
+          status = 'payment_due';
+        } else if (pendingTransactions.length > 0) {
+          // Has pending payments
+          status = 'payment_due';
+        } else {
+          // All payments are paid
+          status = 'paid';
+        }
       } else {
-        // All payments are paid
-        status = 'paid';
+        // Room is empty - available
+        status = 'available';
       }
-    } else {
-      // Room is empty - available
-      status = 'available';
+
+      return {
+        ...room,
+        paymentStatus: status,
+        totalPaid,
+        totalPending,
+        transactionCount: transactionData.length,
+        paidTransactions: paidTransactions.length,
+        pendingTransactions: pendingTransactions.length
+      };
+    } catch (error) {
+      console.error(`Error in findWithPaymentStatus for room ${id}:`, error.message);
+      throw error;
     }
-
-    console.log(`Room ${room.room_number} (${room.occupancy}/${room.capacity}):`, {
-      transactionCount: transactionData.length,
-      paidCount: paidTransactions.length,
-      pendingCount: pendingTransactions.length,
-      totalPending,
-      status
-    });
-
-    return {
-      ...room,
-      paymentStatus: status,
-      totalPaid,
-      totalPending,
-      transactionCount: transactionData.length,
-      paidTransactions: paidTransactions.length,
-      pendingTransactions: pendingTransactions.length
-    };
   }
 };
 
@@ -413,7 +415,7 @@ const Transaction = {
     const transactionRef = await db.collection(TRANSACTIONS_COLLECTION).add({
       user_id,
       room_id,
-      amount,
+      amount: Number(amount) || 0,
       status: 'Pending',
       month,
       date: new Date(),

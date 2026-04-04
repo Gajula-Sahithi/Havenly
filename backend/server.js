@@ -47,7 +47,8 @@ try {
       privateKey: cleanPrivateKey,
       clientEmail: clientEmail
     }),
-    databaseURL: databaseURL
+    databaseURL: databaseURL,
+    storageBucket: `${projectId}.appspot.com` // Default Firebase Storage bucket
   });
   
   console.log('Firebase initialized successfully');
@@ -62,6 +63,7 @@ try {
 }
 
 const db = firebaseInitialized ? admin.firestore() : null;
+const bucket = firebaseInitialized ? admin.storage().bucket() : null;
 
 // Create Express app
 const app = express();
@@ -109,9 +111,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Import routes
 const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const studentRoutes = require('./routes/student');
 const aiRoutes = require('./routes/ai');
+
+// Wrap and pass bucket if needed (though we'll require admin in the routes)
+const adminRoutes = require('./routes/admin');
 
 // API Routes
 app.use('/api/auth', authRoutes);
