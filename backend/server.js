@@ -85,13 +85,17 @@ app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+    
+    // Check if origin is in our allowed list
+    const isAllowed = allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*');
+    
+    // Vercel/Production safe-check: Trust any vercel.app subdomain or same-origin
+    const isVercel = origin.includes('vercel.app');
+    
+    if (isAllowed || isVercel || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
-      // In development, be more permissive if origin is localhost
-      if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
-        return callback(null, true);
-      }
+      console.log('Origin rejected by CORS:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -182,10 +186,8 @@ try {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ 
-    message: `CRASH: ${err.message}`, 
-    error: err.message,
-    stack: err.stack,
-    jwt_secret_present: !!process.env.JWT_SECRET
+    message: err.message === 'Not allowed by CORS' ? 'Security access denied (CORS)' : 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
 });
 
