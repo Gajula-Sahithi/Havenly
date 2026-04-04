@@ -1,7 +1,16 @@
 const admin = require('firebase-admin');
 const bcrypt = require('bcryptjs');
 
-const db = admin.firestore();
+// Lazy initialize firestore to prevent race conditions during require-chain
+const getDb = () => {
+  try {
+    return admin.firestore();
+  } catch (e) {
+    console.error("Firestore initialization failed:", e.message);
+    return null;
+  }
+};
+const db = getDb();
 
 // Collections
 const USERS_COLLECTION = 'users';

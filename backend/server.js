@@ -181,7 +181,12 @@ try {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: 'Internal server error' });
+  res.status(500).json({ 
+    message: `CRASH: ${err.message}`, 
+    error: err.message,
+    stack: err.stack,
+    jwt_secret_present: !!process.env.JWT_SECRET
+  });
 });
 
 // 404 handler
