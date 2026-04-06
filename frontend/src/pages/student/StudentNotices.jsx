@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Loader, Bell, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { Loader, Bell, CheckCircle, Clock, AlertTriangle, History } from 'lucide-react';
 import { studentAPI } from '../../utils/api';
 import { formatDate } from '../../utils/dateFormatter';
 
@@ -7,15 +7,18 @@ const StudentNotices = () => {
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [acknowledging, setAcknowledging] = useState(null);
+  const [activeTab, setActiveTab] = useState('active');
 
   useEffect(() => {
     fetchNotices();
-  }, []);
+  }, [activeTab]);
 
   const fetchNotices = async () => {
     try {
       setLoading(true);
-      const response = await studentAPI.getNotices();
+      const response = activeTab === 'active'
+        ? await studentAPI.getNotices()
+        : await studentAPI.getNoticesHistory();
       setNotices(response.data);
     } catch (error) {
       console.error('Error fetching notices:', error);
@@ -72,9 +75,37 @@ const StudentNotices = () => {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-4xl font-bold text-slate-900">Notice Board</h1>
-        <p className="text-slate-600 mt-2">Important announcements from hostel administration</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-slate-900">Notice Board</h1>
+          <p className="text-slate-600 mt-2">Important announcements from hostel administration</p>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+            activeTab === 'active' 
+              ? 'bg-white text-indigo-600 shadow-sm' 
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Bell size={16} />
+          <span>Active Announcements</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+            activeTab === 'history' 
+              ? 'bg-white text-indigo-600 shadow-sm' 
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <History size={16} />
+          <span>Past Notices</span>
+        </button>
       </div>
 
       {/* Notices List */}
@@ -82,14 +113,14 @@ const StudentNotices = () => {
         {notices.length === 0 ? (
           <div className="card text-center py-16">
             <Bell className="mx-auto text-slate-400 mb-4" size={48} />
-            <p className="text-slate-600 text-lg">No announcements yet</p>
-            <p className="text-slate-500 text-sm mt-2">Check back soon for updates</p>
+            <p className="text-slate-600 text-lg">No {activeTab} announcements found</p>
+            {activeTab === 'active' && <p className="text-slate-500 text-sm mt-2">Check back soon for updates</p>}
           </div>
         ) : (
           notices.map((notice, index) => (
             <div
               key={notice.id || index}
-              className={`card border-2 ${getPriorityColor(notice.priority || 'normal')}`}
+              className={`card border-2 ${getPriorityColor(notice.priority || 'normal')} ${activeTab === 'history' ? 'opacity-75' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-3 flex-1">
@@ -126,8 +157,14 @@ const StudentNotices = () => {
                           <div className="flex items-center space-x-1">
                             <Clock size={14} />
                             <span>
-                              Expires: {formatDate(notice.expires_at)}
+                              {activeTab === 'active' ? 'Expires' : 'Expired'}: {formatDate(notice.expires_at)}
                             </span>
+                          </div>
+                        )}
+                        {!notice.expires_at && (
+                           <div className="flex items-center space-x-1">
+                            <Clock size={14} />
+                            <span>Permanent</span>
                           </div>
                         )}
                       </div>
@@ -146,7 +183,7 @@ const StudentNotices = () => {
                         </p>
                       </div>
                     </div>
-                  ) : (
+                  ) : activeTab === 'active' ? (
                     <button
                       onClick={() => handleAcknowledge(notice.id)}
                       disabled={acknowledging === notice.id}
@@ -161,7 +198,7 @@ const StudentNotices = () => {
                         'Acknowledge'
                       )}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -170,11 +207,11 @@ const StudentNotices = () => {
       </div>
 
       {/* Archive Info */}
-      {notices.length > 0 && (
+      {activeTab === 'active' && notices.length > 0 && (
         <div className="card bg-slate-50 border border-slate-200">
           <p className="text-sm text-slate-600">
-            📌 Showing <strong>{notices.length}</strong> notice{notices.length !== 1 ? 's' : ''}.
-            Older announcements are archived and can be accessed from your account settings.
+            📌 Showing <strong>{notices.length}</strong> active announcement{notices.length !== 1 ? 's' : ''}.
+            You can view past announcements in the <strong>Past Notices</strong> tab.
           </p>
         </div>
       )}

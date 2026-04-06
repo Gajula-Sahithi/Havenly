@@ -117,10 +117,20 @@ router.get('/complaints-history', async (req, res) => {
   }
 });
 
-// GET notices
+// GET active notices
 router.get('/notices', async (req, res) => {
   try {
-    const notices = await Notice.findAll(req.user.id);
+    const notices = await Notice.findActive(req.user.id);
+    res.json(notices);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all notices history
+router.get('/notices-history', async (req, res) => {
+  try {
+    const notices = await Notice.findHistory(req.user.id);
     res.json(notices);
   } catch (error) {
     res.status(500).json({ message: error.message });

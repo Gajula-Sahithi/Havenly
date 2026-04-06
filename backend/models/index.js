@@ -517,26 +517,27 @@ const Notice = {
   async create(noticeData) {
     const { title, content, createdBy } = noticeData;
 
+    // Fix: Handle "Never" expiry (null) vs Default (24h)
+    // If expires_at is specifically null, it's permanent.
+    // If expires_at is undefined, default to 24h.
+    let expiryDate = noticeData.expires_at === undefined 
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000) 
+      : (noticeData.expires_at ? new Date(noticeData.expires_at) : null);
+
     const noticeRef = await db.collection(NOTICES_COLLECTION).add({
       title,
       content,
       date: new Date(),
-      expires_at: noticeData.expires_at ? new Date(noticeData.expires_at) : new Date(Date.now() + 24 * 60 * 60 * 1000), // Default 24h
+      expires_at: expiryDate,
       priority: noticeData.priority || 'medium',
       createdBy
     });
 
-    return { id: noticeRef.id, ...noticeData };
+    return { id: noticeRef.id, ...noticeData, expires_at: expiryDate };
   },
 
-  async findAll(userId = null, isAdmin = false) {
+  async findAll(userId = null, isAdmin = false, activeOnly = false) {
     let query = db.collection(NOTICES_COLLECTION);
-    
-    // Non-admins only see non-expired notices
-    if (!isAdmin) {
-      // Note: In a real app we'd use .where('expires_at', '>', new Date()), 
-      // but without composite indexes in Firestore we'll filter locally for now.
-    }
     
     const snapshot = await query.orderBy('date', 'desc').get();
     const notices = [];
@@ -545,8 +546,8 @@ const Notice = {
     for (const doc of snapshot.docs) {
       const data = doc.data();
       
-      // Filter out expired notices for students
-      if (!isAdmin && data.expires_at) {
+      // Filter out expired notices ONLY if activeOnly is true
+      if (activeOnly && data.expires_at) {
         const expiry = data.expires_at.toDate ? data.expires_at.toDate() : new Date(data.expires_at);
         if (expiry < now) continue;
       }
@@ -588,6 +589,14 @@ const Notice = {
     }
     
     return notices;
+  },
+
+  async findActive(userId = null, isAdmin = false) {
+    return this.findAll(userId, isAdmin, true);
+  },
+
+  async findHistory(userId = null, isAdmin = false) {
+    return this.findAll(userId, isAdmin, false);
   },
 
   async acknowledge(noticeId, userId) {

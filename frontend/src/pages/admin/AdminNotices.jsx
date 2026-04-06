@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader, Wand2 } from 'lucide-react';
+import { Plus, Loader, Wand2, Bell, History } from 'lucide-react';
 import { adminAPI, aiAPI } from '../../utils/api';
 import { formatDate } from '../../utils/dateFormatter';
 
@@ -17,15 +17,18 @@ const AdminNotices = () => {
   });
   const [draftLoading, setDraftLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('active');
 
   useEffect(() => {
     fetchNotices();
-  }, []);
+  }, [activeTab]);
 
   const fetchNotices = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getNotices();
+      const response = activeTab === 'active' 
+        ? await adminAPI.getNotices() 
+        : await adminAPI.getNoticesHistory();
       setNotices(response.data);
     } catch (error) {
       console.error('Error fetching notices:', error);
@@ -72,8 +75,11 @@ const AdminNotices = () => {
       setSubmitting(true);
       
       // Calculate expiry date if selected
-      let expiryDate = null;
-      if (formData.expires_at) {
+      let expiryDate = undefined; // Use undefined by default to trigger 24h backend default
+      
+      if (formData.expires_at === 'never') {
+        expiryDate = null; // Specifically set to null for permanent
+      } else if (formData.expires_at) {
         const hours = parseInt(formData.expires_at);
         expiryDate = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
       }
@@ -81,6 +87,7 @@ const AdminNotices = () => {
       await adminAPI.createNotice({ ...formData, expires_at: expiryDate });
       setFormData({ title: '', content: '', expires_at: '', priority: 'medium' });
       setShowForm(false);
+      setActiveTab('active'); // Switch to active tab to see the new notice
       await fetchNotices();
     } catch (error) {
       alert('Error creating notice: ' + error.message);
@@ -110,6 +117,32 @@ const AdminNotices = () => {
         >
           <Plus size={20} />
           <span>New Notice</span>
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab('active')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+            activeTab === 'active' 
+              ? 'bg-white text-indigo-600 shadow-sm' 
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Bell size={16} />
+          <span>Active Notices</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition ${
+            activeTab === 'history' 
+              ? 'bg-white text-indigo-600 shadow-sm' 
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <History size={16} />
+          <span>Notice History</span>
         </button>
       </div>
 
@@ -222,11 +255,11 @@ const AdminNotices = () => {
                   onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
                   className="input-field"
                 >
-                  <option value="">Never (Manual Archive)</option>
+                  <option value="">24 Hours (Default)</option>
                   <option value="1">1 Hour (Testing)</option>
-                  <option value="24">24 Hours</option>
                   <option value="48">48 Hours</option>
                   <option value="168">1 Week</option>
+                  <option value="never">Never (Permanent)</option>
                 </select>
               </div>
             </div>
@@ -243,7 +276,7 @@ const AdminNotices = () => {
                 type="button"
                 onClick={() => {
                   setShowForm(false);
-                  setFormData({ title: '', content: '' });
+                  setFormData({ title: '', content: '', expires_at: '', priority: 'medium' });
                   setDraftedContent('');
                   setIdea('');
                 }}
@@ -258,32 +291,59 @@ const AdminNotices = () => {
 
       {/* Published Notices */}
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-slate-900 mb-4">Published Notices</h2>
+        <h2 className="text-2xl font-bold text-slate-900 mb-4">
+          {activeTab === 'active' ? 'Active' : 'Archived'} Notices
+        </h2>
 
         {notices.length === 0 ? (
           <div className="card text-center py-12">
-            <p className="text-slate-600 text-lg">No notices published yet</p>
+            <p className="text-slate-600 text-lg">No {activeTab} notices found</p>
           </div>
         ) : (
           notices.map((notice) => (
             <div
               key={notice.id}
-              className="card border-l-4 border-indigo-600 hover:shadow-md transition"
+              className={`card border-l-4 ${
+                activeTab === 'active' ? 'border-indigo-600' : 'border-slate-400 grayscale-[0.5]'
+              } hover:shadow-md transition`}
             >
               <div className="flex items-start justify-between mb-3">
                 <h3 className="text-xl font-bold text-slate-900">{notice.title}</h3>
-                <span className="text-xs text-slate-500">
-                  {formatDate(notice.date)}
-                </span>
+                <div className="text-right">
+                  <span className="block text-xs text-slate-500">
+                    Posted: {formatDate(notice.date)}
+                  </span>
+                  {notice.expires_at && (
+                    <span className={`block text-xs ${activeTab === 'active' ? 'text-indigo-400' : 'text-slate-400'}`}>
+                      Expires: {formatDate(notice.expires_at)}
+                    </span>
+                  )}
+                  {!notice.expires_at && (
+                     <span className="block text-xs text-slate-400">
+                      Permanent
+                    </span>
+                  )}
+                </div>
               </div>
               <p className="text-slate-600 whitespace-pre-wrap leading-relaxed mb-3">
                 {notice.content}
               </p>
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>Published by: {notice.createdBy?.name || 'Admin'}</span>
-                <span className="flex items-center space-x-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-medium">
-                  <span>{notice.acknowledgeCount || 0} Acknowledged</span>
-                </span>
+                <div className="flex items-center space-x-2">
+                  {notice.priority && (
+                     <span className={`px-2 py-0.5 rounded-full font-medium ${
+                      notice.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                      notice.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {notice.priority.toUpperCase()}
+                    </span>
+                  )}
+                  <span className="flex items-center space-x-1 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-full font-medium">
+                    <span>{notice.acknowledgeCount || 0} Acknowledged</span>
+                  </span>
+                </div>
               </div>
             </div>
           ))

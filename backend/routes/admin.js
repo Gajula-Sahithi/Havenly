@@ -228,10 +228,20 @@ router.post('/notices', async (req, res) => {
   }
 });
 
-// GET all notices
+// GET all active notices
 router.get('/notices', async (req, res) => {
   try {
-    const notices = await Notice.findAll(null, true);
+    const notices = await Notice.findActive(null, true);
+    res.json(notices);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET all notices history
+router.get('/notices-history', async (req, res) => {
+  try {
+    const notices = await Notice.findHistory(null, true);
     res.json(notices);
   } catch (error) {
     res.status(500).json({ message: error.message });
