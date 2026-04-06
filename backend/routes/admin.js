@@ -243,9 +243,10 @@ router.get('/stats', async (req, res) => {
   try {
     const rooms = await Room.findAll();
     const totalRooms = rooms.length;
+    const totalCapacity = rooms.reduce((sum, room) => sum + (Number(room.capacity) || 0), 0);
     
     const usersSnapshot = await db.collection(USERS_COLLECTION).where('room_id', '!=', null).get();
-    const occupiedRooms = usersSnapshot.size;
+    const totalStudents = usersSnapshot.size;
     
     const complaints = await Complaint.findAll();
     const pendingComplaints = complaints.filter(c => c.status === 'Pending').length;
@@ -270,12 +271,13 @@ router.get('/stats', async (req, res) => {
     console.log(`Final revenue: ${revenueCollected}, pending: ${pendingDues}`);
 
     res.json({
-      occupancy: totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0,
+      occupancy: totalCapacity > 0 ? Math.round((totalStudents / totalCapacity) * 100) : 0,
       pendingComplaints,
       revenueCollected: Math.round(revenueCollected * 100) / 100, // Round to 2 decimal places
       pendingDues: Math.round(pendingDues * 100) / 100,
       totalRooms,
-      occupiedRooms
+      totalCapacity,
+      totalStudents
     });
   } catch (error) {
     console.error('Stats calculation error:', error);

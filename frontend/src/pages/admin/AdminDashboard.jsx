@@ -42,7 +42,7 @@ const AdminDashboard = () => {
         occupancy: statsData.occupancy,
         pendingTickets: statsData.pendingComplaints,
         revenue: statsData.revenueCollected,
-        capacity: statsData.totalRooms
+        capacity: statsData.totalCapacity
       });
       setInsights(response.data.insights);
     } catch (error) {
@@ -77,7 +77,7 @@ const AdminDashboard = () => {
           </div>
           <p className="text-slate-600 text-sm">Occupancy Rate</p>
           <p className="text-xs text-slate-500 mt-2">
-            {stats?.occupiedRooms}/{stats?.totalRooms} rooms occupied
+            {stats?.totalStudents}/{stats?.totalCapacity} beds occupied
           </p>
         </div>
 
