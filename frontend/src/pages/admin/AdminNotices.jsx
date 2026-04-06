@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Loader, Wand2, Bell, History } from 'lucide-react';
+import { Plus, Loader, Wand2, Bell, History, Trash2 } from 'lucide-react';
 import { adminAPI, aiAPI } from '../../utils/api';
 import { formatDate } from '../../utils/dateFormatter';
 
@@ -18,6 +18,7 @@ const AdminNotices = () => {
   const [draftLoading, setDraftLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('active');
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     fetchNotices();
@@ -93,6 +94,22 @@ const AdminNotices = () => {
       alert('Error creating notice: ' + error.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to permanently delete this notice?')) {
+      return;
+    }
+
+    try {
+      setDeletingId(id);
+      await adminAPI.deleteNotice(id);
+      setNotices(notices.filter(notice => notice.id !== id));
+    } catch (error) {
+      alert('Error deleting notice: ' + error.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -305,9 +322,23 @@ const AdminNotices = () => {
               key={notice.id}
               className={`card border-l-4 ${
                 activeTab === 'active' ? 'border-indigo-600' : 'border-slate-400 grayscale-[0.5]'
-              } hover:shadow-md transition`}
+              } hover:shadow-md transition relative group`}
             >
-              <div className="flex items-start justify-between mb-3">
+              {/* Delete Button */}
+              <button
+                onClick={() => handleDelete(notice.id)}
+                disabled={deletingId === notice.id}
+                className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all duration-200 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                title="Delete Notice"
+              >
+                {deletingId === notice.id ? (
+                  <Loader className="animate-spin" size={18} />
+                ) : (
+                  <Trash2 size={18} />
+                )}
+              </button>
+
+              <div className="flex items-start justify-between mb-3 pr-10">
                 <h3 className="text-xl font-bold text-slate-900">{notice.title}</h3>
                 <div className="text-right">
                   <span className="block text-xs text-slate-500">

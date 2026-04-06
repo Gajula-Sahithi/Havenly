@@ -248,6 +248,16 @@ router.get('/notices-history', async (req, res) => {
   }
 });
 
+// DELETE notice
+router.delete('/notices/:id', async (req, res) => {
+  try {
+    await Notice.delete(req.params.id);
+    res.json({ message: 'Notice and associated acknowledgments deleted' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // GET dashboard stats
 router.get('/stats', async (req, res) => {
   try {

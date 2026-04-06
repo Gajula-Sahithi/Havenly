@@ -625,6 +625,24 @@ const Notice = {
     const doc = await db.collection(NOTICES_COLLECTION).doc(id).get();
     if (!doc.exists) return null;
     return { id: doc.id, ...doc.data() };
+  },
+
+  async delete(id) {
+    if (!id) throw new Error('Notice ID is required');
+    
+    // Delete all associated acknowledgments first
+    const acks = await db.collection(ACKNOWLEDGMENTS_COLLECTION)
+      .where('notice_id', '==', id)
+      .get();
+    
+    const batch = db.batch();
+    acks.docs.forEach(doc => batch.delete(doc.ref));
+    
+    // Delete the notice itself
+    batch.delete(db.collection(NOTICES_COLLECTION).doc(id));
+    
+    await batch.commit();
+    return true;
   }
 };
 
