@@ -7,17 +7,8 @@ const admin = require('firebase-admin');
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    // Create unique filename with timestamp and original name
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configure multer for in-memory storage (Vercel compatible)
+const storage = multer.memoryStorage();
 
 const upload = multer({ 
   storage: storage,
@@ -75,9 +66,10 @@ router.post('/rooms', upload.single('photo'), async (req, res) => {
     // Handle photo URL
     let photo_url = null;
     if (req.file) {
-      // If file was uploaded, use the filename
-      photo_url = req.file.filename;
-      console.log('Room photo uploaded:', req.file.filename);
+      // Convert buffer to Base64 data URI
+      const base64Data = req.file.buffer.toString('base64');
+      photo_url = `data:${req.file.mimetype};base64,${base64Data}`;
+      console.log('Room photo processed as Base64');
     } else if (req.body.photo_url) {
       // If photo_url was provided in form data (for external URLs)
       photo_url = req.body.photo_url;
@@ -107,8 +99,10 @@ router.put('/rooms/:id', upload.single('photo'), async (req, res) => {
     
     // Handle photo upload
     if (req.file) {
-      updateData.photo_url = req.file.filename;
-      console.log('Room photo updated:', req.file.filename);
+      // Convert buffer to Base64 data URI
+      const base64Data = req.file.buffer.toString('base64');
+      updateData.photo_url = `data:${req.file.mimetype};base64,${base64Data}`;
+      console.log('Room photo updated as Base64');
     }
     
     const room = await Room.update(req.params.id, updateData);

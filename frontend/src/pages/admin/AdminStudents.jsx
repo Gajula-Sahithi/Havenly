@@ -16,6 +16,13 @@ const UserDocument = ({ filename, userName, className }) => {
       return;
     }
 
+    // Check if filename is already a Base64 data string
+    if (filename.startsWith('data:')) {
+      setSrc(filename);
+      setLoading(false);
+      return;
+    }
+
     const fetchImage = async () => {
       try {
         const response = await adminAPI.getPhoto(filename);

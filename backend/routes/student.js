@@ -300,10 +300,27 @@ router.post('/notices/:id/acknowledge', async (req, res) => {
 router.get('/photo/:filename', authenticate, (req, res) => {
   try {
     const { filename } = req.params;
+    
+    // Safety check: if filename is actually a base64 string (shouldn't happen with this route but just in case)
+    if (filename.startsWith('data:')) {
+      return res.status(400).json({ message: 'This route is for filenames, not Base64 data' });
+    }
+
     const filePath = path.join(__dirname, '../uploads', filename);
-    res.sendFile(filePath);
+    
+    // Use callback for res.sendFile to handle errors (like file not found) gracefully
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        if (!res.headersSent) {
+          console.error(`Photo not found or error serving: ${filename}`);
+          return res.status(404).json({ message: 'Photo not found' });
+        }
+      }
+    });
   } catch (error) {
-    res.status(404).json({ message: 'Photo not found' });
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Internal server error serving photo' });
+    }
   }
 });
 
